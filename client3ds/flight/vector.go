@@ -120,3 +120,8 @@ func FromEulerXYZ(x, y, z float64) Rotation {
 		cosineX*cosineY*cosineZ - sineX*sineY*sineZ,
 	}
 }
+
+// Inverse is the rotation that undoes this one.
+func (rotation Rotation) Inverse() Rotation {
+	return Rotation{-rotation[0], -rotation[1], -rotation[2], rotation[3]}
+}

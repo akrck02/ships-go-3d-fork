@@ -7,39 +7,83 @@ import (
 	"strconv"
 
 	"github.com/akrck02/go-renderer/ctr"
+	"github.com/akrck02/go-renderer/draw2d"
 	ui "github.com/akrck02/go-ui"
 )
 
-// build lays out the touch screen: the connection, our life and score, and everyone's score.
+// titleSize is the title screen's heading, in pixels.
+const titleSize = 40
+
+// build lays out the touch screen for what it shows now.
 func (session *session) build(context *ui.Context) {
-	state := session.game
+	switch {
+	case session.screen == titleScreen:
+		session.buildTitle(context)
+	case session.screen == serverScreen:
+		session.buildPanel(context, session.buildServerChoice)
+	case session.menuOpen:
+		session.buildPanel(context, session.buildMenu)
+	case session.game.Welcomed:
+		session.buildMap(context)
+	default:
+		session.buildPanel(context, func(context *ui.Context) {})
+	}
+}
+
+// buildPanel is a panel over the whole screen with the connection's status and content below.
+func (session *session) buildPanel(context *ui.Context, content func(context *ui.Context)) {
 	options := ui.PanelOptions{Dock: ui.DockLeft, Width: ui.Fixed(ctr.BottomWidth), Height: ui.Grow()}
 	context.PanelWith("Ships 3D", options, func() {
 		context.Caption(session.status)
-		if state.Problem != "" {
-			context.Caption("Server: " + state.Problem)
+		if session.game.Problem != "" {
+			context.Caption("Server: " + session.game.Problem)
 		}
-		if session.client == nil && !state.Welcomed {
-			session.buildServerChoice(context)
-			return
+		content(context)
+	})
+}
+
+// buildTitle is the first screen: the name, and how to go on.
+func (session *session) buildTitle(context *ui.Context) {
+	layout := ui.Layout{Direction: ui.Vertical, Width: ui.Fixed(ctr.BottomWidth), Height: ui.Fixed(ctr.BottomHeight), AlignX: ui.Center, AlignY: ui.Center, Gap: 12}
+	context.Box(layout, func() {
+		context.Text("Ships 3D", ui.TextStyle{Size: titleSize, Weight: draw2d.Bold})
+		context.Caption("Touch the screen or press A to start")
+	})
+}
+
+// buildServerChoice shows the server to connect to, a button to type another one, and Connect.
+func (session *session) buildServerChoice(context *ui.Context) {
+	context.Caption("Server")
+	context.Text(session.server, ui.TextStyle{})
+	context.Row(func() {
+		if context.IconButton("keyboard", "Change") {
+			session.typing = true
 		}
-		if !state.Welcomed {
-			return
+		if context.IconButton("plug", "Connect") {
+			session.connect()
 		}
-		lifeShare := float32(state.Player.Life / state.Settings.MaxLife)
-		context.Row(func() {
-			context.Text("Life", ui.TextStyle{})
-			context.Spacer()
-			context.Text(strconv.Itoa(int(state.Player.Life))+" / "+strconv.Itoa(int(state.Settings.MaxLife)), ui.TextStyle{})
-		})
-		context.Slider("life", &lifeShare, 0, 1) // shown only: the value is put back every frame
-		if !state.Alive {
-			context.Caption("Destroyed. Press A to fly again.")
+	})
+	context.Caption("START quits")
+}
+
+// buildMenu is the options, opened with START during a game.
+func (session *session) buildMenu(context *ui.Context) {
+	state := session.game
+	context.Text(lifeLine(state.Player.Life, state.Settings.MaxLife), ui.TextStyle{})
+	context.Caption("Players")
+	context.Text(scoreLine(state.Player.Name+" (you)", state.Player.Kills, state.Player.Deaths), ui.TextStyle{})
+	for _, line := range session.remoteLines() {
+		context.Text(line, ui.TextStyle{})
+	}
+	context.Row(func() {
+		if context.IconButton("play", "Resume") {
+			session.menuOpen = false
 		}
-		context.Caption("Players")
-		context.Text(scoreLine(state.Player.Name+" (you)", state.Player.Kills, state.Player.Deaths), ui.TextStyle{})
-		for _, line := range session.remoteLines() {
-			context.Text(line, ui.TextStyle{})
+		if context.IconButton("log-out", "Leave") {
+			session.leave("Left the game")
+		}
+		if context.IconButton("power", "Quit") {
+			session.quitting = true
 		}
 	})
 }
@@ -66,16 +110,6 @@ func scoreLine(name string, kills, deaths int) string {
 	return name + "   " + strconv.Itoa(kills) + " kills, " + strconv.Itoa(deaths) + " deaths"
 }
 
-// buildServerChoice shows the server to connect to, a button to type another one, and Connect.
-func (session *session) buildServerChoice(context *ui.Context) {
-	context.Caption("Server")
-	context.Text(session.server, ui.TextStyle{})
-	context.Row(func() {
-		if context.IconButton("keyboard", "Change") {
-			session.typing = true
-		}
-		if context.IconButton("plug", "Connect") {
-			session.connect()
-		}
-	})
+func lifeLine(life, maximum float64) string {
+	return "Life " + strconv.Itoa(int(life)) + " / " + strconv.Itoa(int(maximum))
 }

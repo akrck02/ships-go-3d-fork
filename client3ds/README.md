@@ -11,9 +11,10 @@ tinygo build -target=nintendo3ds -ldflags "-X main.host=192.168.1.20" -o ships3d
 It needs [TinyGo for 3DS](https://github.com/akrck02/tinygo-3ds) and devkitPro's libraries, and
 a copy of go-3ds with its `network` package next to this repository (see `go.mod`).
 
-Playing: touch Change to type the server as address:port on the system keyboard, then Connect (plain `ws://`, port
-3000: no TLS yet). Circle pad: nose and turn. L and R: roll. X and B: faster and slower. A: fire,
-and fly again after dying. START leaves.
+Playing: touch the title screen, then **Change** to type the server as `address:port` on the
+system keyboard, and **Connect** (plain `ws://`: no TLS yet). In the game the touch screen is a map
+that turns with the ship. Circle pad: nose and turn. L and R: roll. X and B: faster and slower. A:
+fire, and fly again after dying. Up and down: the map's range. START: options (leave, quit).
 
 The packages `websocket`, `protocol`, `flight`, `ship` and `game` are plain Go, tested on the PC
 with `go test ./...`; only `cmd/ships3ds` needs the console.

@@ -85,3 +85,11 @@ func TestABulletPassingThroughAShipHitsIt(t *testing.T) {
 		t.Fatal("a path that stops short hit")
 	}
 }
+
+func TestTheInverseUndoesARotation(t *testing.T) {
+	rotation := FromEulerXYZ(0.4, -1.2, 2)
+	probe := Vector{3, -1, 2}
+	if got := rotation.Inverse().Apply(rotation.Apply(probe)); !near(got, probe) {
+		t.Fatalf("got %v, want %v", got, probe)
+	}
+}
