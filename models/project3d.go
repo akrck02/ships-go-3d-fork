@@ -25,11 +25,19 @@ const (
 	PartCone     = "cone"
 	PartWedge    = "wedge"
 	PartTorus    = "torus"
+	PartDome     = "dome"
+	PartCapsule  = "capsule"
+	PartPyramid  = "pyramid"
+	PartTube     = "tube"
+	PartPrism    = "prism"
+	PartFrustum  = "frustum"
 )
 
 var partTypes = map[string]bool{
 	PartBox: true, PartSphere: true, PartCylinder: true,
 	PartCone: true, PartWedge: true, PartTorus: true,
+	PartDome: true, PartCapsule: true, PartPyramid: true,
+	PartTube: true, PartPrism: true, PartFrustum: true,
 }
 
 // Limits on what a project may contain. They keep a single design small

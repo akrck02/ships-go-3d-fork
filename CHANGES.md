@@ -1,5 +1,11 @@
 CHANGES
 =======
+Version 0.3.0 - 2026-10-18
+------------------
+Six new part types for the ship designer: dome, capsule, pyramid, tube,
+prism (hexagonal) and frustum (tapered cylinder). Ships using them can now be
+saved and flown.
+
 Version 0.2.0 - 2026-10-10
 ------------------
 Players on mobile data are no longer thrown out of the game after a few
