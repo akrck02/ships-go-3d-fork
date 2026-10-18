@@ -3,6 +3,7 @@
 package main
 
 import (
+	"math"
 	"strconv"
 
 	"github.com/akrck02/go-renderer/ctr"
@@ -14,16 +15,18 @@ import (
 
 // The map's look, in pixels of the touch screen.
 const (
-	mapMargin        = 14
-	blipSize         = 8
-	ownMarkerSize    = 10
-	bulletBlipSize   = 3
-	stalkWidth       = 2
-	ringWidth        = 1.5
-	heightShare      = 0.6 // how much of the map's radius a ship at the edge, straight above, rises
-	labelSize        = 13
-	labelMargin      = 8
-	labelLineSpacing = 16
+	mapMargin         = 14
+	blipSize          = 8
+	ownMarkerSize     = 10
+	sweepDots         = 40
+	sweepDotSize      = 2
+	sweepTrailRadians = 0.06
+	stalkWidth        = 2
+	ringWidth         = 1.5
+	heightShare       = 0.6 // how much of the map's radius a ship at the edge, straight above, rises
+	labelSize         = 13
+	labelMargin       = 8
+	labelLineSpacing  = 16
 )
 
 var (
@@ -32,7 +35,8 @@ var (
 	mapOwn          = draw2d.Hex("#4fc3f7")
 	mapEnemy        = draw2d.Hex("#ff5252")
 	mapEnemyFar     = draw2d.Hex("#8a3434")
-	mapBullet       = draw2d.Hex("#ffb74d")
+	mapSweep        = draw2d.Hex("#4fc3f7")
+	sweepTrail      = []float32{0.9, 0.45, 0.2}
 	mapLabel        = draw2d.Hex("#9fb3c0")
 	mapTransparent  = draw2d.Color{}
 	mapCircleRadius = float32(1 << 10) // rounding larger than the shape makes a circle
@@ -62,23 +66,14 @@ func (session *session) paintMap(area draw2d.Rect, drawing *draw2d.List) {
 		y = centreY - float32(blip.Ahead)*radius
 		return x, y, y - float32(blip.Above)*radius*heightShare
 	}
-	for _, bullet := range state.Others {
-		blip := radar.Place(bullet.Position, state.Own.Position, state.Own.Rotation, distance)
-		if blip.InRange {
-			x, _, top := toScreen(blip)
-			circle(x, top, bulletBlipSize, mapBullet, mapTransparent, 0)
-		}
-	}
-	for _, remote := range state.Remotes {
-		if remote.Player.Dead {
-			continue
-		}
-		blip := radar.Place(remote.Shown.Position, state.Own.Position, state.Own.Rotation, distance)
-		x, y, top := toScreen(blip)
+	session.paintSweep(drawing, centreX, centreY, radius)
+	for _, echo := range session.scanner.Echoes {
+		x, y, top := toScreen(echo.Blip)
 		colour := mapEnemy
-		if !blip.InRange {
+		if !echo.Blip.InRange {
 			colour = mapEnemyFar
 		}
+		colour[3] *= float32(echo.Brightness(session.now))
 		// A stalk from the map's plane up (or down) to the ship, as in the browser: above and
 		// below read at a glance.
 		drawing.Rectangle(draw2d.Rect{X: x - stalkWidth/2, Y: min(y, top), Width: stalkWidth, Height: abs(top - y)}, 0, colour, mapTransparent, 0)
@@ -101,6 +96,21 @@ func (session *session) paintMap(area draw2d.Rect, drawing *draw2d.List) {
 	rangeText := strconv.Itoa(int(distance)) + " units  (up/down)"
 	drawing.Text(rangeText, area.X+labelMargin, area.Y+area.Height-labelMargin, labelSize, draw2d.Regular, mapLabel)
 	drawing.Text("START: options", area.X+area.Width-112, area.Y+area.Height-labelMargin, labelSize, draw2d.Regular, mapLabel)
+}
+
+// paintSweep draws the radar's turning line as a row of dots, since the draw list has no lines,
+// with a fainter one just behind it.
+func (session *session) paintSweep(drawing *draw2d.List, centreX, centreY, radius float32) {
+	for trail, brightness := range sweepTrail {
+		angle := radar.Angle(session.now) - float64(trail)*sweepTrailRadians
+		right, ahead := float32(math.Sin(angle)), float32(math.Cos(angle))
+		colour := mapSweep
+		colour[3] *= brightness
+		for dot := 1; dot <= sweepDots; dot++ {
+			share := float32(dot) / sweepDots
+			drawing.Rectangle(draw2d.Rect{X: centreX + right*radius*share - sweepDotSize/2, Y: centreY - ahead*radius*share - sweepDotSize/2, Width: sweepDotSize, Height: sweepDotSize}, 0, colour, mapTransparent, 0)
+		}
+	}
 }
 
 func abs(value float32) float32 {

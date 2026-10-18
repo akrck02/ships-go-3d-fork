@@ -109,13 +109,15 @@ type session struct {
 	menuOpen   bool // the options, over the map
 	quitting   bool
 	mapRange   int // index in radar.Ranges
+	scanner    *radar.Scanner
+	now        float64 // seconds, this frame
 }
 
 // maximumServerLength fits a name or an address and its port.
 const maximumServerLength = 64
 
 func newSession() *session {
-	return &session{game: game.New(), server: host + ":" + port, status: "Choose the server and touch Connect", mapRange: radar.DefaultRange}
+	return &session{game: game.New(), server: host + ":" + port, status: "Choose the server and touch Connect", mapRange: radar.DefaultRange, scanner: radar.NewScanner()}
 }
 
 // typeServer opens the system keyboard for the server's address. It runs between frames: the
@@ -181,6 +183,7 @@ func (session *session) leave(status string) {
 	session.close()
 	session.client, session.connection = nil, nil
 	session.game, session.joined, session.menuOpen = game.New(), false, false
+	session.scanner = radar.NewScanner()
 	session.status, session.screen = status, serverScreen
 }
 
@@ -220,6 +223,20 @@ func (session *session) exchange(frame app.Frame, now float64) {
 	for _, text := range session.game.Step(controls, firing, firing, frame.Seconds, now) {
 		session.send(text)
 	}
+	session.scan(now)
+}
+
+// scan turns the map's sweep and lets it see the ships it passes over.
+func (session *session) scan(now float64) {
+	state := session.game
+	session.now = now
+	blips := make(map[string]radar.Blip, len(state.Remotes))
+	for id, remote := range state.Remotes {
+		if !remote.Player.Dead {
+			blips[id] = radar.Place(remote.Shown.Position, state.Own.Position, state.Own.Rotation, radar.Ranges[session.mapRange])
+		}
+	}
+	session.scanner.Update(now, blips)
 }
 
 func (session *session) send(text string) {
