@@ -25,6 +25,19 @@ func TestValidateAcceptsAndTrims(t *testing.T) {
 	}
 }
 
+func TestValidateAcceptsEveryPartType(t *testing.T) {
+	for _, partType := range []string{
+		PartBox, PartSphere, PartCylinder, PartCone, PartWedge, PartTorus,
+		PartDome, PartCapsule, PartPyramid, PartTube, PartPrism, PartFrustum,
+	} {
+		p := validProject()
+		p.Layers[0].Parts[0].Type = partType
+		if err := p.Validate(); err != nil {
+			t.Errorf("%s rejected: %v", partType, err)
+		}
+	}
+}
+
 func TestValidateRejects(t *testing.T) {
 	cases := map[string]func(p *Project3d){
 		"empty name":     func(p *Project3d) { p.Name = "   " },
