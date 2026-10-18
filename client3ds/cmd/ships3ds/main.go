@@ -107,6 +107,7 @@ type session struct {
 	status     string // what the touch screen says about the connection
 	screen     screen
 	menuOpen   bool // the options, over the map
+	tab        int  // the options' or the server screen's tab
 	quitting   bool
 	mapRange   int // index in radar.Ranges
 	scanner    *radar.Scanner
@@ -216,7 +217,7 @@ func (session *session) exchange(frame app.Frame, now float64) {
 	if session.game.Welcomed {
 		session.status = "Playing on " + session.server
 	}
-	controls, firing := controlsOf(frame.Reading), frame.Reading.Held&ctr.ButtonA != 0
+	controls, firing := controlsOf(frame), frame.Reading.Held&ctr.ButtonA != 0
 	if session.menuOpen {
 		controls, firing = flight.Controls{}, false // the ship flies on straight while the options are open
 	}

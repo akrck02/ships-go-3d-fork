@@ -11,6 +11,9 @@ import (
 	ui "github.com/akrck02/go-ui"
 )
 
+// boldWeight is the heavy text of titles and names.
+const boldWeight = draw2d.Bold
+
 // titleSize is the title screen's heading, in pixels.
 const titleSize = 40
 
@@ -46,13 +49,19 @@ func (session *session) buildPanel(context *ui.Context, content func(context *ui
 func (session *session) buildTitle(context *ui.Context) {
 	layout := ui.Layout{Direction: ui.Vertical, Width: ui.Fixed(ctr.BottomWidth), Height: ui.Fixed(ctr.BottomHeight), AlignX: ui.Center, AlignY: ui.Center, Gap: 12}
 	context.Box(layout, func() {
-		context.Text("Ships 3D", ui.TextStyle{Size: titleSize, Weight: draw2d.Bold})
+		context.Text("Ships 3D", ui.TextStyle{Size: titleSize, Weight: boldWeight})
 		context.Caption("Touch the screen or press A to start")
 	})
 }
 
-// buildServerChoice shows the server to connect to, a button to type another one, and Connect.
+// buildServerChoice shows the server to connect to, a button to type another one, and Connect;
+// and the controls, in their own tab.
 func (session *session) buildServerChoice(context *ui.Context) {
+	context.Tabs("server tabs", &session.tab, "Server", "Controls")
+	if session.tab == 1 {
+		buildControls(context)
+		return
+	}
 	context.Caption("Server")
 	context.Text(session.server, ui.TextStyle{})
 	context.Row(func() {
@@ -68,6 +77,11 @@ func (session *session) buildServerChoice(context *ui.Context) {
 
 // buildMenu is the options, opened with START during a game.
 func (session *session) buildMenu(context *ui.Context) {
+	context.Tabs("menu tabs", &session.tab, "Game", "Controls")
+	if session.tab == 1 {
+		buildControls(context)
+		return
+	}
 	state := session.game
 	context.Text(lifeLine(state.Player.Life, state.Settings.MaxLife), ui.TextStyle{})
 	context.Caption("Players")

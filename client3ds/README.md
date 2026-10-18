@@ -13,8 +13,9 @@ a copy of go-3ds with its `network` package next to this repository (see `go.mod
 
 Playing: touch the title screen, then **Change** to type the server as `address:port` on the
 system keyboard, and **Connect** (plain `ws://`: no TLS yet). In the game the touch screen is a radar
-that turns with the ship and sweeps once every 5 seconds. Circle pad: nose and turn. L and R: roll. X and B: faster and slower. A:
-fire, and fly again after dying. Up and down: the map's range. START: options (leave, quit).
+that turns with the ship and sweeps once every 5 seconds. Circle pad: nose and turn. L and R, or the C-stick across: roll. X and B, or
+the C-stick up and down: faster and slower. A: fire, and fly again after dying. Up and down: the map's range. START: options (leave, quit). The list is also
+in the Controls tab of the server screen and of the options.
 
 The packages `websocket`, `protocol`, `flight`, `ship` and `game` are plain Go, tested on the PC
 with `go test ./...`; only `cmd/ships3ds` needs the console.
