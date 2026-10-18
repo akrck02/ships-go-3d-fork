@@ -101,3 +101,11 @@ func TestRemoteShipsEaseTowardTheirSnapshot(t *testing.T) {
 		t.Fatalf("x %v after a second, want almost 10", x)
 	}
 }
+
+func TestBeingHitIsRemembered(t *testing.T) {
+	game := welcomed(50)
+	game.Handle(protocol.Incoming{Type: protocol.TypeDamage, Target: "me", Life: 9}, nil, 3)
+	if game.HitAt != 3 || game.Player.Life != 9 {
+		t.Fatalf("hit at %v, life %v", game.HitAt, game.Player.Life)
+	}
+}

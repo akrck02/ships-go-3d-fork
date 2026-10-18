@@ -12,9 +12,14 @@ import (
 
 // controlsOf reads the sticks and the buttons as the flight model's controls. The C-stick (New
 // 3DS) rolls and changes speed, as L, R, X and B do; both can be used at once.
-func controlsOf(frame app.Frame) flight.Controls {
+func controlsOf(frame app.Frame, choices options) flight.Controls {
 	circleX, circleY := frame.Reading.Circle()
-	controls := flight.Controls{Pitch: -circleY, Yaw: circleX, Roll: frame.CStickX, Throttle: frame.CStickY}
+	precision := float64(choices.precision)
+	pitch := -flight.Curve(circleY, precision)
+	if choices.invertPitch {
+		pitch = -pitch
+	}
+	controls := flight.Controls{Pitch: pitch, Yaw: flight.Curve(circleX, precision), Roll: frame.CStickX, Throttle: frame.CStickY}
 	held := frame.Reading.Held
 	if held&ctr.ButtonL != 0 {
 		controls.Roll--
@@ -33,7 +38,7 @@ func controlsOf(frame app.Frame) flight.Controls {
 
 // controlLines are what each control does, for the Controls tab.
 var controlLines = [][2]string{
-	{"Circle pad", "Nose up and down, turn"},
+	{"Circle pad", "Down raises the nose; turn"},
 	{"C-stick", "Roll, faster and slower"},
 	{"L / R", "Roll left / right"},
 	{"X / B", "Faster / slower"},

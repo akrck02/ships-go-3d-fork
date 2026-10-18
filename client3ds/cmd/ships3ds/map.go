@@ -19,6 +19,10 @@ const (
 	blipSize          = 8
 	ownMarkerSize     = 10
 	sweepDots         = 40
+	speedBarWidth     = 6
+	speedBarMargin    = 40
+	hitFlashSeconds   = 0.5
+	hitFlashWidth     = 6
 	sweepDotSize      = 2
 	sweepTrailRadians = 0.06
 	stalkWidth        = 2
@@ -36,6 +40,7 @@ var (
 	mapEnemy        = draw2d.Hex("#ff5252")
 	mapEnemyFar     = draw2d.Hex("#8a3434")
 	mapSweep        = draw2d.Hex("#4fc3f7")
+	mapHit          = draw2d.Hex("#ff5252")
 	sweepTrail      = []float32{0.9, 0.45, 0.2}
 	mapLabel        = draw2d.Hex("#9fb3c0")
 	mapTransparent  = draw2d.Color{}
@@ -79,6 +84,13 @@ func (session *session) paintMap(area draw2d.Rect, drawing *draw2d.List) {
 		drawing.Rectangle(draw2d.Rect{X: x - stalkWidth/2, Y: min(y, top), Width: stalkWidth, Height: abs(top - y)}, 0, colour, mapTransparent, 0)
 		circle(x, top, blipSize, colour, mapTransparent, 0)
 	}
+	session.paintSpeed(drawing, area, state.Own.Speed, state.Settings.MinSpeed, state.Settings.MaxSpeed)
+	if session.now-state.HitAt < hitFlashSeconds && state.HitAt > 0 {
+		// Hit: the screen's edge flashes red, fading.
+		flash := mapHit
+		flash[3] *= float32(1 - (session.now-state.HitAt)/hitFlashSeconds)
+		drawing.Rectangle(area, 0, mapTransparent, flash, hitFlashWidth)
+	}
 	if state.Alive {
 		circle(centreX, centreY, ownMarkerSize, mapOwn, mapTransparent, 0)
 	}
@@ -111,6 +123,23 @@ func (session *session) paintSweep(drawing *draw2d.List, centreX, centreY, radiu
 			drawing.Rectangle(draw2d.Rect{X: centreX + right*radius*share - sweepDotSize/2, Y: centreY - ahead*radius*share - sweepDotSize/2, Width: sweepDotSize, Height: sweepDotSize}, 0, colour, mapTransparent, 0)
 		}
 	}
+}
+
+// paintSpeed draws the speed as a bar up the right edge: empty at the slowest reverse, full at
+// the fastest, with a mark where the ship stands still.
+func (session *session) paintSpeed(drawing *draw2d.List, area draw2d.Rect, speed, slowest, fastest float64) {
+	if fastest <= slowest {
+		return
+	}
+	x := area.X + area.Width - labelMargin - speedBarWidth
+	top, bottom := area.Y+speedBarMargin, area.Y+area.Height-speedBarMargin
+	height := bottom - top
+	share := float32((speed - slowest) / (fastest - slowest))
+	stopped := bottom - float32(-slowest/(fastest-slowest))*height
+	drawing.Rectangle(draw2d.Rect{X: x, Y: top, Width: speedBarWidth, Height: height}, speedBarWidth/2, mapRingFaint, mapTransparent, 0)
+	drawing.Rectangle(draw2d.Rect{X: x, Y: bottom - share*height, Width: speedBarWidth, Height: share * height}, speedBarWidth/2, mapOwn, mapTransparent, 0)
+	drawing.Rectangle(draw2d.Rect{X: x - 3, Y: stopped - ringWidth/2, Width: speedBarWidth + 6, Height: ringWidth}, 0, mapLabel, mapTransparent, 0)
+	drawing.Text(strconv.Itoa(int(speed)), x-labelSize-14, bottom-share*height+labelSize/2, labelSize, draw2d.Regular, mapLabel)
 }
 
 func abs(value float32) float32 {

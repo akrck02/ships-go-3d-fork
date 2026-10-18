@@ -69,3 +69,10 @@ func SegmentHitsSphere(from, to, centre Vector, radius float64) bool {
 func clamp(value, minimum, maximum float64) float64 {
 	return min(maximum, max(minimum, value))
 }
+
+// Curve shapes a stick's value in [-1, 1] for aiming: with precision 0 it is unchanged, with 1 it
+// is the value cubed, slow near the centre for fine aim and still full at the edge.
+func Curve(value, precision float64) float64 {
+	precision = clamp(precision, 0, 1)
+	return value*(1-precision) + value*value*value*precision
+}

@@ -15,6 +15,7 @@
 package main
 
 import (
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -26,6 +27,7 @@ import (
 	"github.com/akrck02/go-renderer/ctr"
 	"github.com/akrck02/go-renderer/models"
 
+	"ships3d/client3ds/figures"
 	"ships3d/client3ds/flight"
 	"ships3d/client3ds/game"
 	"ships3d/client3ds/protocol"
@@ -33,12 +35,11 @@ import (
 	"ships3d/client3ds/websocket"
 )
 
-// Set with -ldflags -X: where the server is, and what to fly.
+// Set with -ldflags -X: where the server is, and the player's name.
 var (
-	host   = "192.168.1.2"
-	port   = "3000"
-	shipId = "default:arrow"
-	name   = "3DS"
+	host = "192.168.1.2"
+	port = "3000"
+	name = "3DS"
 )
 
 // websocketPath is where the server takes game connections (controllers/game.go).
@@ -67,7 +68,8 @@ func main() {
 	start := time.Now()
 	view := models.Camera{Far: cameraFar, Near: cameraNear}
 	app.RunWithStart(func(frame app.Frame) bool {
-		now := time.Since(start).Seconds()
+		frameStart := time.Now()
+		now := frameStart.Sub(start).Seconds()
 		if !session.press(frame.Pressed) {
 			return false
 		}
@@ -78,6 +80,7 @@ func main() {
 		separation := ctr.Slider3D() * eyeSeparation
 		renderer.PaintStereo(world.scene, view, separation, focalDistance)
 		panel.Paint(frame.Input, session.build)
+		session.measure(frame, renderer, time.Since(frameStart), now)
 		ctr.EndFrame()
 		if session.typing {
 			session.typeServer()
@@ -106,19 +109,25 @@ type session struct {
 	typing     bool   // the player asked for the keyboard; it opens after this frame
 	status     string // what the touch screen says about the connection
 	screen     screen
-	menuOpen   bool // the options, over the map
-	tab        int  // the options' or the server screen's tab
+	menuOpen   bool   // the options, over the map
+	tab        string // the chosen tab of the server screen or the options
+	tabIndex   int
 	quitting   bool
 	mapRange   int // index in radar.Ranges
 	scanner    *radar.Scanner
 	now        float64 // seconds, this frame
+	figures    figures.Counter
+	ship       int // index in guestShips
+	options    options
+	heapBytes  uint64  // the heap's size, read now and then
+	memoryAt   float64 // when it was read, in seconds
 }
 
 // maximumServerLength fits a name or an address and its port.
 const maximumServerLength = 64
 
 func newSession() *session {
-	return &session{game: game.New(), server: host + ":" + port, status: "Choose the server and touch Connect", mapRange: radar.DefaultRange, scanner: radar.NewScanner()}
+	return &session{game: game.New(), server: host + ":" + port, status: "Choose the server and touch Connect", mapRange: radar.DefaultRange, scanner: radar.NewScanner(), options: defaultOptions}
 }
 
 // typeServer opens the system keyboard for the server's address. It runs between frames: the
@@ -200,6 +209,7 @@ func (session *session) exchange(frame app.Frame, now float64) {
 			println("unreadable message:", readErr.Error())
 			continue
 		}
+		session.figures.Received(len(text))
 		session.game.Handle(message, states, now)
 	}
 	if err != nil {
@@ -212,12 +222,12 @@ func (session *session) exchange(frame app.Frame, now float64) {
 	if !session.joined {
 		session.joined = true
 		session.status = "Joining…"
-		session.send(protocol.Join(shipId, name))
+		session.send(protocol.Join(guestShips[session.ship].id, name))
 	}
 	if session.game.Welcomed {
 		session.status = "Playing on " + session.server
 	}
-	controls, firing := controlsOf(frame), frame.Reading.Held&ctr.ButtonA != 0
+	controls, firing := controlsOf(frame, session.options), frame.Reading.Held&ctr.ButtonA != 0
 	if session.menuOpen {
 		controls, firing = flight.Controls{}, false // the ship flies on straight while the options are open
 	}
@@ -244,6 +254,7 @@ func (session *session) send(text string) {
 	if session.client == nil {
 		return // left on an earlier message of this frame
 	}
+	session.figures.Sent(len(text))
 	if err := session.client.Send(text); err != nil {
 		session.leave("Disconnected: " + err.Error())
 	}
@@ -258,3 +269,49 @@ func (session *session) close() {
 	}
 	network.Stop()
 }
+
+// measure counts the frame for the Figures tab; processor is how long the frame took before
+// waiting for the screen.
+func (session *session) measure(frame app.Frame, renderer *ctr.SceneRenderer, processor time.Duration, now float64) {
+	statistics := renderer.Statistics(processor)
+	if session.menuOpen && session.tab == figuresTab && now-session.memoryAt >= memoryEverySeconds {
+		// Reading the heap walks it, which takes most of a frame: only while shown, once a second.
+		var memory runtime.MemStats
+		runtime.ReadMemStats(&memory)
+		session.heapBytes, session.memoryAt = memory.HeapAlloc, now
+	}
+	delay := 0.0
+	if session.game.SnapshotAt > 0 {
+		delay = now - session.game.SnapshotAt
+	}
+	session.figures.AddFrame(figures.Frame{
+		Seconds:               frame.Seconds,
+		ProcessorMilliseconds: float32(processor.Seconds() * 1000),
+		GPUMilliseconds:       ctr.DrawingTime(),
+		Triangles:             statistics.Triangles,
+		DrawCalls:             statistics.DrawCalls,
+		Bakes:                 renderer.Bakes(),
+		HeapBytes:             session.heapBytes,
+		Players:               len(session.game.Remotes) + 1,
+		SnapshotDelay:         delay,
+	})
+}
+
+// guestShips are the built-in ships a guest may fly, as the server names them
+// (game/defaultShips.go): change both together.
+var guestShips = []struct{ id, name string }{
+	{"default:arrow", "Arrow"},
+	{"default:hammer", "Hammer"},
+	{"default:saucer", "Saucer"},
+}
+
+// options are the player's choices in the Settings tab.
+type options struct {
+	invertPitch bool    // up on the circle pad raises the nose, instead of a plane's way
+	precision   float32 // 0 to 1: how much softer the circle pad is near its centre
+}
+
+var defaultOptions = options{precision: 0.5}
+
+// memoryEverySeconds is how often the Figures tab reads the heap's size.
+const memoryEverySeconds = 1

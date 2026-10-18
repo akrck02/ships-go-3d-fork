@@ -57,6 +57,9 @@ type Game struct {
 	Welcomed bool
 	Alive    bool
 	Problem  string // the server's last error message
+	// SnapshotAt is when the server's last snapshot arrived, in seconds; HitAt when we were last
+	// hit.
+	SnapshotAt, HitAt float64
 
 	diedAt    float64
 	lastState float64
@@ -85,6 +88,7 @@ func (game *Game) Handle(message protocol.Incoming, states []protocol.PlayerStat
 	case protocol.TypePlayerLeft:
 		delete(game.Remotes, message.Id)
 	case protocol.TypeSnapshot:
+		game.SnapshotAt = now
 		for _, state := range states {
 			if remote, found := game.Remotes[state.Id]; found {
 				remote.reported, remote.seenAt = state, now
@@ -94,6 +98,9 @@ func (game *Game) Handle(message protocol.Incoming, states []protocol.PlayerStat
 		game.Others = append(game.Others, Bullet{Id: message.Id, Position: message.Position, Direction: message.Direction, expiresAt: now + game.bulletSeconds()})
 	case protocol.TypeDamage:
 		game.setLife(message.Target, message.Life)
+		if message.Target == game.Id {
+			game.HitAt = now
+		}
 	case protocol.TypeDied:
 		game.died(message.Target, message.From, now)
 	case protocol.TypeRespawned:

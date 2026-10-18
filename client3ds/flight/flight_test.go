@@ -93,3 +93,12 @@ func TestTheInverseUndoesARotation(t *testing.T) {
 		t.Fatalf("got %v, want %v", got, probe)
 	}
 }
+
+func TestTheCurveKeepsTheEdgesAndSoftensTheCentre(t *testing.T) {
+	if Curve(1, 0.7) != 1 || Curve(-1, 0.7) != -1 {
+		t.Fatal("the edge is not full")
+	}
+	if Curve(0.5, 0) != 0.5 || Curve(0.5, 1) != 0.125 {
+		t.Fatalf("got %v and %v", Curve(0.5, 0), Curve(0.5, 1))
+	}
+}

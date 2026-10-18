@@ -54,37 +54,75 @@ func (session *session) buildTitle(context *ui.Context) {
 	})
 }
 
-// buildServerChoice shows the server to connect to, a button to type another one, and Connect;
-// and the controls, in their own tab.
+// The tabs of the server screen and of the options, by name: both share the controls and the
+// settings.
+const (
+	serverTab   = "Server"
+	gameTab     = "Game"
+	controlsTab = "Controls"
+	figuresTab  = "Figures"
+	settingsTab = "Settings"
+)
+
+var (
+	serverTabs = []string{serverTab, settingsTab, controlsTab}
+	menuTabs   = []string{gameTab, figuresTab, settingsTab, controlsTab}
+)
+
+// buildTabs shows tabs and the chosen one's content.
+func (session *session) buildTabs(context *ui.Context, name string, labels []string, content map[string]func()) {
+	selected := min(session.tabIndex, len(labels)-1)
+	context.Tabs(name, &selected, labels...)
+	session.tabIndex, session.tab = selected, labels[selected]
+	content[session.tab]()
+}
+
+// buildServerChoice shows the server to connect to, the ship, and Connect; the settings and the
+// controls in their own tabs.
 func (session *session) buildServerChoice(context *ui.Context) {
-	context.Tabs("server tabs", &session.tab, "Server", "Controls")
-	if session.tab == 1 {
-		buildControls(context)
-		return
-	}
-	context.Caption("Server")
-	context.Text(session.server, ui.TextStyle{})
+	session.buildTabs(context, "server tabs", serverTabs, map[string]func(){
+		serverTab:   func() { session.buildServer(context) },
+		settingsTab: func() { session.buildSettings(context) },
+		controlsTab: func() { buildControls(context) },
+	})
+}
+
+func (session *session) buildServer(context *ui.Context) {
 	context.Row(func() {
+		context.Text(session.server, ui.TextStyle{})
+		context.Spacer()
 		if context.IconButton("keyboard", "Change") {
 			session.typing = true
 		}
-		if context.IconButton("plug", "Connect") {
-			session.connect()
-		}
 	})
+	names := make([]string, len(guestShips))
+	for index, ship := range guestShips {
+		names[index] = ship.name
+	}
+	context.Row(func() {
+		context.Text("Ship", ui.TextStyle{})
+		context.Spacer()
+		context.Select("ship", &session.ship, names)
+	})
+	if context.IconButton("plug", "Connect") {
+		session.connect()
+	}
 	context.Caption("START quits")
 }
 
 // buildMenu is the options, opened with START during a game.
 func (session *session) buildMenu(context *ui.Context) {
-	context.Tabs("menu tabs", &session.tab, "Game", "Controls")
-	if session.tab == 1 {
-		buildControls(context)
-		return
-	}
+	session.buildTabs(context, "menu tabs", menuTabs, map[string]func(){
+		gameTab:     func() { session.buildGame(context) },
+		figuresTab:  func() { session.buildFigures(context) },
+		settingsTab: func() { session.buildSettings(context) },
+		controlsTab: func() { buildControls(context) },
+	})
+}
+
+func (session *session) buildGame(context *ui.Context) {
 	state := session.game
 	context.Text(lifeLine(state.Player.Life, state.Settings.MaxLife), ui.TextStyle{})
-	context.Caption("Players")
 	context.Text(scoreLine(state.Player.Name+" (you)", state.Player.Kills, state.Player.Deaths), ui.TextStyle{})
 	for _, line := range session.remoteLines() {
 		context.Text(line, ui.TextStyle{})
@@ -100,6 +138,18 @@ func (session *session) buildMenu(context *ui.Context) {
 			session.quitting = true
 		}
 	})
+}
+
+// buildSettings offers how the circle pad flies.
+func (session *session) buildSettings(context *ui.Context) {
+	context.Toggle("Up raises the nose", &session.options.invertPitch)
+	context.Row(func() {
+		context.Text("Fine aim", ui.TextStyle{})
+		context.Spacer()
+		context.Text(strconv.Itoa(int(session.options.precision*100+0.5))+" %", ui.TextStyle{})
+	})
+	context.SliderStep("precision", &session.options.precision, 0, 1, 0.1)
+	context.Caption("Fine aim makes the circle pad softer near its centre.")
 }
 
 // remoteLines are the other players' scores, best first.
