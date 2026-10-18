@@ -17,6 +17,7 @@ import (
 
 	"github.com/akrck02/go-3ds/app"
 	"github.com/akrck02/go-3ds/bottom"
+	"github.com/akrck02/go-3ds/keyboard"
 	"github.com/akrck02/go-3ds/network"
 	"github.com/akrck02/go-renderer/ctr"
 	"github.com/akrck02/go-renderer/models"
@@ -69,6 +70,9 @@ func main() {
 		renderer.PaintStereo(world.scene, view, separation, focalDistance)
 		panel.Paint(frame.Input, session.build)
 		ctr.EndFrame()
+		if session.typing {
+			session.typeServer()
+		}
 		return true
 	})
 	session.close()
@@ -80,35 +84,34 @@ type session struct {
 	connection *network.Connection
 	client     *websocket.Client
 	joined     bool
-	address    [4]float32 // the server's IPv4 address, chosen on the touch screen
-	status     string     // what the touch screen says about the connection
+	server     string // host:port, typed on the system keyboard
+	typing     bool   // the player asked for the keyboard; it opens after this frame
+	status     string // what the touch screen says about the connection
 }
+
+// maximumServerLength fits a name or an address and its port.
+const maximumServerLength = 64
 
 func newSession() *session {
-	session := &session{game: game.New(), status: "Choose the server and touch Connect"}
-	parts := strings.Split(host, ".")
-	for index := 0; index < len(parts) && index < len(session.address); index++ {
-		number, _ := strconv.Atoi(parts[index]) // a name instead of numbers just starts at 0
-		session.address[index] = float32(number)
-	}
-	return session
+	return &session{game: game.New(), server: host + ":" + port, status: "Choose the server and touch Connect"}
 }
 
-// serverHost is the address chosen on the touch screen.
-func (session *session) serverHost() string {
-	parts := make([]string, len(session.address))
-	for index, number := range session.address {
-		parts[index] = strconv.Itoa(int(number))
-	}
-	return strings.Join(parts, ".")
+// typeServer opens the system keyboard for the server's address. It runs between frames: the
+// keyboard takes both screens until the player is done.
+func (session *session) typeServer() {
+	session.typing = false
+	session.server, _ = keyboard.Ask(keyboard.Numbers, "Server address:port", session.server, maximumServerLength)
 }
 
 // connect opens the connection and starts the websocket handshake.
 func (session *session) connect() {
-	address := session.serverHost()
-	portNumber, err := strconv.Atoi(port)
+	address, portText, found := strings.Cut(session.server, ":")
+	if !found {
+		portText = port
+	}
+	portNumber, err := strconv.Atoi(portText)
 	if err != nil {
-		session.status = "The port " + port + " is not a number"
+		session.status = "The port " + portText + " is not a number"
 		return
 	}
 	session.connection, err = network.Dial(address, portNumber)
@@ -116,12 +119,12 @@ func (session *session) connect() {
 		session.status = err.Error()
 		return
 	}
-	session.client, err = websocket.Connect(session.connection, address+":"+port, websocketPath, nil)
+	session.client, err = websocket.Connect(session.connection, address+":"+portText, websocketPath, nil)
 	if err != nil {
 		session.status = err.Error()
 		return
 	}
-	session.status = "Connecting to " + address + ":" + port + "…"
+	session.status = "Connecting to " + address + ":" + portText + "…"
 }
 
 // exchange reads what the server sent, moves the game on with the controls and sends the result.

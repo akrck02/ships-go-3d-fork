@@ -66,13 +66,16 @@ func scoreLine(name string, kills, deaths int) string {
 	return name + "   " + strconv.Itoa(kills) + " kills, " + strconv.Itoa(deaths) + " deaths"
 }
 
-// buildServerChoice offers the server's address, a number at a time, and a button to connect.
+// buildServerChoice shows the server to connect to, a button to type another one, and Connect.
 func (session *session) buildServerChoice(context *ui.Context) {
-	context.Caption("Server " + session.serverHost() + ":" + port)
-	for index := range session.address {
-		context.SliderStep("address "+strconv.Itoa(index), &session.address[index], 0, 255, 1)
-	}
-	if context.IconButton("plug", "Connect") {
-		session.connect()
-	}
+	context.Caption("Server")
+	context.Text(session.server, ui.TextStyle{})
+	context.Row(func() {
+		if context.IconButton("keyboard", "Change") {
+			session.typing = true
+		}
+		if context.IconButton("plug", "Connect") {
+			session.connect()
+		}
+	})
 }

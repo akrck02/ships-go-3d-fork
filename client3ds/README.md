@@ -11,7 +11,7 @@ tinygo build -target=nintendo3ds -ldflags "-X main.host=192.168.1.20" -o ships3d
 It needs [TinyGo for 3DS](https://github.com/akrck02/tinygo-3ds) and devkitPro's libraries, and
 a copy of go-3ds with its `network` package next to this repository (see `go.mod`).
 
-Playing: choose the server's address on the touch screen and touch Connect (plain `ws://`, port
+Playing: touch Change to type the server as address:port on the system keyboard, then Connect (plain `ws://`, port
 3000: no TLS yet). Circle pad: nose and turn. L and R: roll. X and B: faster and slower. A: fire,
 and fly again after dying. START leaves.
 
