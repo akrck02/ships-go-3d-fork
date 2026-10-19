@@ -51,6 +51,7 @@ type world struct {
 	bullets                []*scene.Node
 	view                   chase.View // what the camera saw last, to leave out the ships it can't
 	sky, edge              *scene.Node
+	title                  *scene.Node // the ship that crosses the title screen
 	dust                   []*scene.Node
 }
 
@@ -60,7 +61,8 @@ func newWorld() *world {
 	world := &world{scene: space, ships: map[meshKey]*scene.Mesh{}, remotes: map[string]*scene.Node{}}
 	world.sky = skyNode()
 	world.edge = &scene.Node{Name: "world edge", Transform: graphics.Identity(), Hidden: true}
-	space.Nodes = append(space.Nodes, world.sky, world.edge)
+	world.title = titleShip()
+	space.Nodes = append(space.Nodes, world.sky, world.edge, world.title)
 	cell := dustCellMesh()
 	for range 8 {
 		node := &scene.Node{Name: "dust", Mesh: cell, Transform: graphics.Identity()}
@@ -84,6 +86,7 @@ func newWorld() *world {
 
 // show places everything where the game says, and the camera behind our ship.
 func (world *world) show(state *game.Game, view *models.Camera, seconds float64) {
+	world.title.Hidden = true
 	if !state.Welcomed {
 		view.Position, view.Target, view.Up = graphics.Vec4{0, 20, -60, 1}, graphics.Vec4{0, 0, 0, 1}, graphics.Vec4{0, 1, 0, 0}
 		return

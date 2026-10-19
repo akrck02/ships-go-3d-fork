@@ -65,6 +65,11 @@ func main() {
 		println(err.Error())
 		return
 	}
+	title, err := newTopTitle(panel.Screen(), bottom.Theme())
+	if err != nil {
+		println(err.Error())
+		return
+	}
 
 	session := newSession()
 	world := newWorld()
@@ -79,10 +84,19 @@ func main() {
 		session.exchange(frame, now)
 		networkTime := time.Since(frameStart)
 		world.show(session.game, &view, frame.Seconds)
+		if session.screen == titleScreen {
+			world.showTitle(now, &view)
+		}
 
 		ctr.BeginFrame()
-		separation := ctr.Slider3D() * eyeSeparation
-		renderer.PaintStereo(world.scene, view, separation, focalDistance)
+		if session.screen == titleScreen {
+			// One picture rather than two eyes: the name painted over it would show double in 3D.
+			renderer.PaintOn(screen, world.scene, view)
+			title.paint(screen)
+		} else {
+			separation := ctr.Slider3D() * eyeSeparation
+			renderer.PaintStereo(world.scene, view, separation, focalDistance)
+		}
 		if session.showsRadar3D() {
 			dish.paint(panel.Screen(), session.scanner, now)
 			panel.PaintOver(frame.Input, session.build)

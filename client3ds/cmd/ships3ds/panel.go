@@ -17,8 +17,8 @@ const boldWeight = draw2d.Bold
 // shipNameWidth is the room the chosen ship's name has between its arrows, in pixels.
 const shipNameWidth = 120
 
-// titleSize is the title screen's heading, in pixels.
-const titleSize = 40
+// promptSize is the title screen's invitation to start, on the touch screen, in pixels.
+const promptSize = 24
 
 // build lays out the touch screen for what it shows now.
 func (session *session) build(context *ui.Context) {
@@ -48,12 +48,12 @@ func (session *session) buildPanel(context *ui.Context, content func(context *ui
 	})
 }
 
-// buildTitle is the first screen: the name, and how to go on.
+// buildTitle is the first screen's touch screen: how to go on; the name is on the top screen.
 func (session *session) buildTitle(context *ui.Context) {
 	layout := ui.Layout{Direction: ui.Vertical, Width: ui.Fixed(ctr.BottomWidth), Height: ui.Fixed(ctr.BottomHeight), AlignX: ui.Center, AlignY: ui.Center, Gap: 12}
 	context.Box(layout, func() {
-		context.Text("Ships 3D", ui.TextStyle{Size: titleSize, Weight: boldWeight})
-		context.Caption("Touch the screen or press A to start")
+		context.Text("Touch the screen", ui.TextStyle{Size: promptSize, Weight: boldWeight})
+		context.Caption("or press A to start")
 	})
 }
 
