@@ -63,6 +63,11 @@ func main() {
 		println(err.Error())
 		return
 	}
+	dish, err := newRadarScene(screen)
+	if err != nil {
+		println(err.Error())
+		return
+	}
 
 	session := newSession()
 	world := newWorld()
@@ -81,7 +86,12 @@ func main() {
 		ctr.BeginFrame()
 		separation := ctr.Slider3D() * eyeSeparation
 		renderer.PaintStereo(world.scene, view, separation, focalDistance)
-		panel.Paint(frame.Input, session.build)
+		if session.showsRadar3D() {
+			dish.paint(panel.Screen(), session.scanner, now)
+			panel.PaintOver(frame.Input, session.build)
+		} else {
+			panel.Paint(frame.Input, session.build)
+		}
 		session.measure(frame, renderer, time.Since(frameStart), networkTime, now)
 		ctr.EndFrame()
 		session.askWithKeyboard()
@@ -481,6 +491,13 @@ type options struct {
 	invertPitch bool    // up on the circle pad raises the nose, instead of a plane's way
 	precision   float32 // 0 to 1: how much softer the circle pad is near its centre
 	gyroscope   bool    // tilting the console steers too
+	flatRadar   bool    // the touch screen's radar seen straight from above, as a map
+}
+
+// showsRadar3D tells whether the touch screen shows the 3D radar now: in the game, with the
+// options closed, unless the flat one was chosen.
+func (session *session) showsRadar3D() bool {
+	return session.screen == gameScreen && !session.menuOpen && session.game.Welcomed && !session.options.flatRadar
 }
 
 var defaultOptions = options{precision: 0.5}

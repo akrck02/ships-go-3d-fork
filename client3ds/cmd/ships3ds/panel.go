@@ -180,6 +180,10 @@ func (session *session) buildGame(context *ui.Context) {
 // buildSettings offers how the circle pad flies.
 func (session *session) buildSettings(context *ui.Context) {
 	context.Toggle("Up raises the nose", &session.options.invertPitch)
+	threeDimensions := !session.options.flatRadar
+	if context.Toggle("3D radar", &threeDimensions) {
+		session.options.flatRadar = !threeDimensions
+	}
 	if context.Toggle("Steer by tilting", &session.options.gyroscope) {
 		session.tilt.Centre() // from where the console is held now
 	}

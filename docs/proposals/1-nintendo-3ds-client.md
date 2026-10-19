@@ -85,6 +85,8 @@ console).
 - [x] T10 — TLS (the other half of R8): go-3ds `network.DialSecure`, TLS 1.2 through devkitPro's mbedtls 2.28, trusting Let's Encrypt's ISRG Root X1 and X2 and checking the server's name; a server typed as `https://name:port` is talked to over TLS for logging in, the ships and the websocket (`account.ParseAddress`). The real server, `https://jonbul.ddns.net:3000`, answers in about a second's handshake; a self-signed or misnamed certificate is refused. Found on the way: Close skipped freeing a connection the server had closed first, and the third TLS handshake failed to allocate · tests: `TestAddressesAreUnderstood`; `cmd/secure-echo` in Azahar against the real server and badssl.com · decided then · R8 · test: join against the HTTPS dev server
 - [x] T11 — check the server is untouched · R9 · test: `go test ./...`
 
+- [x] T21 — a 3D radar on the touch screen, as the browser's: a dish seen from above and behind, blips with stalks to its plane, the sweep turning in it, drawn by a second ctr.SceneRenderer with the readings painted over it (go-3ds `bottom.PaintOver`); the flat one stays in Settings. 60 fps with 30 bots in Azahar · test: `TestABlipOnTheRightIsOnMinusX`
+
 ## Result
 
 Released as prereleases `demo-1` … `demo-12` in the author's private copy (akrck02/ships-go-3d),

@@ -31,3 +31,10 @@ func TestAFarShipIsPinnedToTheEdge(t *testing.T) {
 		t.Fatalf("got %+v", blip)
 	}
 }
+
+func TestABlipOnTheRightIsOnMinusX(t *testing.T) {
+	x, y, z := Blip{Right: 0.5, Ahead: 0.2, Above: 1}.Scene()
+	if x != -0.5 || z != 0.2 || y != heightShare {
+		t.Fatalf("got %v %v %v", x, y, z)
+	}
+}

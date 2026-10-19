@@ -55,11 +55,14 @@ func (session *session) buildMap(context *ui.Context) {
 
 func (session *session) paintMap(area draw2d.Rect, drawing *draw2d.List) {
 	state := session.game
-	distance := radar.Ranges[session.mapRange]
 	radius := min(area.Width, area.Height)/2 - mapMargin
 	centreX, centreY := area.X+area.Width/2, area.Y+area.Height/2
 	circle := func(x, y, size float32, fill, border draw2d.Color, borderWidth float32) {
 		drawing.Rectangle(draw2d.Rect{X: x - size/2, Y: y - size/2, Width: size, Height: size}, mapCircleRadius, fill, border, borderWidth)
+	}
+	if !session.options.flatRadar {
+		session.paintReadings(area, drawing) // the 3D radar is drawn under, by the radar scene
+		return
 	}
 	circle(centreX, centreY, radius*2, mapTransparent, mapRing, ringWidth)
 	circle(centreX, centreY, radius, mapTransparent, mapRingFaint, ringWidth)
@@ -84,15 +87,23 @@ func (session *session) paintMap(area draw2d.Rect, drawing *draw2d.List) {
 		drawing.Rectangle(draw2d.Rect{X: x - stalkWidth/2, Y: min(y, top), Width: stalkWidth, Height: abs(top - y)}, 0, colour, mapTransparent, 0)
 		circle(x, top, blipSize, colour, mapTransparent, 0)
 	}
+	if state.Alive {
+		circle(centreX, centreY, ownMarkerSize, mapOwn, mapTransparent, 0)
+	}
+	session.paintReadings(area, drawing)
+}
+
+// paintReadings draws what both radars show around the dish: the speed, a hit's flash, life,
+// score, the range and how to open the options.
+func (session *session) paintReadings(area draw2d.Rect, drawing *draw2d.List) {
+	state := session.game
+	distance := radar.Ranges[session.mapRange]
 	session.paintSpeed(drawing, area, state.Own.Speed, state.Settings.MinSpeed, state.Settings.MaxSpeed)
 	if session.now-state.HitAt < hitFlashSeconds && state.HitAt > 0 {
 		// Hit: the screen's edge flashes red, fading.
 		flash := mapHit
 		flash[3] *= float32(1 - (session.now-state.HitAt)/hitFlashSeconds)
 		drawing.Rectangle(area, 0, mapTransparent, flash, hitFlashWidth)
-	}
-	if state.Alive {
-		circle(centreX, centreY, ownMarkerSize, mapOwn, mapTransparent, 0)
 	}
 
 	lines := []string{

@@ -29,3 +29,13 @@ func Place(target, position flight.Vector, rotation flight.Rotation, distance fl
 	}
 	return blip
 }
+
+// heightShare is how much of the radar's radius a ship at its edge, straight above, rises: the
+// browser's radar squashes height a little, so the sphere reads as a dish.
+const heightShare = 0.6
+
+// Scene is where a blip goes in a radar drawn in 3D, a sphere of radius 1 around the origin, seen
+// from behind our ship: +Z ahead, +Y up, and +X the ship's left, so its right is -X.
+func (blip Blip) Scene() (x, y, z float64) {
+	return -blip.Right, blip.Above * heightShare, blip.Ahead
+}
