@@ -27,6 +27,7 @@ import (
 	"github.com/akrck02/go-renderer/models"
 
 	"ships3d/client3ds/account"
+	"ships3d/client3ds/chase"
 	"ships3d/client3ds/figures"
 	"ships3d/client3ds/flight"
 	"ships3d/client3ds/game"
@@ -72,7 +73,7 @@ func main() {
 	session := newSession()
 	world := newWorld()
 	start := time.Now()
-	view := models.Camera{Far: cameraFar, Near: cameraNear}
+	view := models.Camera{Far: cameraFar, Near: cameraNear, FieldOfView: chase.FieldOfView}
 	app.RunWithStart(func(frame app.Frame) bool {
 		frameStart := time.Now()
 		now := frameStart.Sub(start).Seconds()

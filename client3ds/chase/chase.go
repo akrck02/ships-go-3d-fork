@@ -49,12 +49,13 @@ func (camera *Camera) Follow(ship flight.State, shipRadius, seconds float64) Vie
 // Reset makes the next Follow jump to the ship: after a respawn, far from where it was.
 func (camera *Camera) Reset() { camera.started = false }
 
-// The view the camera sees, as go-renderer draws it: a vertical field of view of a quarter turn
-// over two (models.Camera's default) on the top screen's 400 × 240.
-const (
-	verticalFieldOfView = math.Pi / 4
-	screenAspect        = 400.0 / 240.0
-)
+// FieldOfView is the chase camera's vertical field of view, in radians: 58 degrees, between
+// go-renderer's default of 45, which looked zoomed in, and the browser's 70, too wide for the
+// 3DS's small screen.
+const FieldOfView = 58 * math.Pi / 180
+
+// screenAspect is the top screen's 400 × 240.
+const screenAspect = 400.0 / 240.0
 
 // Sees tells whether a sphere of radius at centre can show on the screen from this view, and is
 // nearer than farthest: whether a ship there needs drawing at all. It errs on the side of yes,
@@ -70,7 +71,7 @@ func (view View) Sees(centre flight.Vector, radius, farthest float64) bool {
 	}
 	forward := view.Target.Subtract(view.Eye)
 	forward = forward.Times(1 / forward.Length())
-	verticalTangent := math.Tan(verticalFieldOfView / 2)
+	verticalTangent := math.Tan(FieldOfView / 2)
 	cornerAngle := math.Atan(math.Hypot(verticalTangent, verticalTangent*screenAspect))
 	angle := math.Acos(max(-1, min(1, toCentre.Dot(forward)/distance)))
 	return angle-math.Asin(min(1, radius/distance)) <= cornerAngle
