@@ -40,6 +40,13 @@ var partTypes = map[string]bool{
 	PartTube: true, PartPrism: true, PartFrustum: true,
 }
 
+// Part textures, also mirrored in shipModel.ts. A part without one ("") is
+// plain; the client draws the texture tinted by the part's color.
+var partTextures = map[string]bool{
+	"panels": true, "grid": true, "stripes": true, "carbon": true,
+	"hexagons": true, "worn": true, "camo": true, "windows": true,
+}
+
 // Limits on what a project may contain. They keep a single design small
 // enough to be sent to every player that joins a game, and rendered by a
 // phone. Mirrored in ships-vue-3d's shipModel.ts so the editor can tell the
@@ -63,6 +70,9 @@ type Part struct {
 	Rotation Vec3   `json:"rotation" bson:"rotation"`
 	Scale    Vec3   `json:"scale" bson:"scale"`
 	Color    string `json:"color" bson:"color"`
+	// Texture is one of partTextures, or empty for a plain part (and in
+	// ships saved before textures existed).
+	Texture string `json:"texture,omitempty" bson:"texture,omitempty"`
 	// Mirror also renders the part reflected across the ship's X=0 plane,
 	// so a symmetric ship only needs one side designed.
 	Mirror bool `json:"mirror" bson:"mirror"`
@@ -133,6 +143,9 @@ func (part *Part) validate() error {
 	}
 	if !colorPattern.MatchString(part.Color) {
 		return fmt.Errorf("invalid color %q", part.Color)
+	}
+	if part.Texture != "" && !partTextures[part.Texture] {
+		return fmt.Errorf("unknown texture %q", part.Texture)
 	}
 	for axis := 0; axis < 3; axis++ {
 		if !isFinite(part.Position[axis]) || math.Abs(part.Position[axis]) > MaxCoordinate {

@@ -38,17 +38,30 @@ func TestValidateAcceptsEveryPartType(t *testing.T) {
 	}
 }
 
+func TestValidateAcceptsEveryTexture(t *testing.T) {
+	for _, texture := range []string{
+		"", "panels", "grid", "stripes", "carbon", "hexagons", "worn", "camo", "windows",
+	} {
+		p := validProject()
+		p.Layers[0].Parts[0].Texture = texture
+		if err := p.Validate(); err != nil {
+			t.Errorf("texture %q rejected: %v", texture, err)
+		}
+	}
+}
+
 func TestValidateRejects(t *testing.T) {
 	cases := map[string]func(p *Project3d){
-		"empty name":     func(p *Project3d) { p.Name = "   " },
-		"long name":      func(p *Project3d) { p.Name = strings.Repeat("x", MaxProjectNameLength+1) },
-		"no layers":      func(p *Project3d) { p.Layers = nil },
-		"unknown type":   func(p *Project3d) { p.Layers[0].Parts[0].Type = "teapot" },
-		"bad color":      func(p *Project3d) { p.Layers[0].Parts[0].Color = "red" },
-		"far position":   func(p *Project3d) { p.Layers[0].Parts[0].Position[1] = MaxCoordinate + 1 },
-		"zero scale":     func(p *Project3d) { p.Layers[0].Parts[0].Scale[2] = 0 },
-		"NaN rotation":   func(p *Project3d) { p.Layers[0].Parts[0].Rotation[0] = math.NaN() },
-		"too many parts": func(p *Project3d) { p.Layers[0].Parts = make([]Part, MaxParts+1) },
+		"empty name":      func(p *Project3d) { p.Name = "   " },
+		"long name":       func(p *Project3d) { p.Name = strings.Repeat("x", MaxProjectNameLength+1) },
+		"no layers":       func(p *Project3d) { p.Layers = nil },
+		"unknown type":    func(p *Project3d) { p.Layers[0].Parts[0].Type = "teapot" },
+		"bad color":       func(p *Project3d) { p.Layers[0].Parts[0].Color = "red" },
+		"unknown texture": func(p *Project3d) { p.Layers[0].Parts[0].Texture = "marble" },
+		"far position":    func(p *Project3d) { p.Layers[0].Parts[0].Position[1] = MaxCoordinate + 1 },
+		"zero scale":      func(p *Project3d) { p.Layers[0].Parts[0].Scale[2] = 0 },
+		"NaN rotation":    func(p *Project3d) { p.Layers[0].Parts[0].Rotation[0] = math.NaN() },
+		"too many parts":  func(p *Project3d) { p.Layers[0].Parts = make([]Part, MaxParts+1) },
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {

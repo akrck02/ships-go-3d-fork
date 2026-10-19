@@ -1,5 +1,12 @@
 CHANGES
 =======
+Version 0.4.0 - 2026-10-19
+------------------
+Ship parts can have a texture: `texture` on a part is one of `panels`,
+`grid`, `stripes`, `carbon`, `hexagons`, `worn`, `camo` or `windows`, or is
+left out for a plain part. It is saved with the ship and sent to every player
+in game; ships saved before stay plain.
+
 Version 0.3.0 - 2026-10-18
 ------------------
 Six new part types for the ship designer: dome, capsule, pyramid, tube,
