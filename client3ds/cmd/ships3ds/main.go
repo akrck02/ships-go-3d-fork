@@ -64,6 +64,11 @@ func main() {
 		println(err.Error())
 		return
 	}
+	preview, err := newPreviewScene(screen)
+	if err != nil {
+		println(err.Error())
+		return
+	}
 	title, err := newTopTitle(panel.Screen(), bottom.Theme())
 	if err != nil {
 		println(err.Error())
@@ -88,8 +93,8 @@ func main() {
 		case titleScreen, enteringScreen:
 			world.showTitle(now, &view)
 		case shipScreen:
-			mesh, scale := session.previewShip(world)
-			world.showPreview(mesh, scale, now, &view)
+			world.showTitle(now, &view)
+			world.title.Hidden = true // the ship turns on the touch screen; the top shows its name
 		}
 
 		ctr.BeginFrame()
@@ -101,10 +106,15 @@ func main() {
 			separation := ctr.Slider3D() * eyeSeparation
 			renderer.PaintStereo(world.scene, view, separation, focalDistance)
 		}
-		if session.showsRadar3D() {
+		switch {
+		case session.showsRadar3D():
 			dish.paint(panel.Screen(), session.scanner, now)
 			panel.PaintOver(frame.Input, session.build)
-		} else {
+		case session.screen == shipScreen && !session.menuOpen && session.confirming == noChange:
+			mesh, scale := session.previewShip(world)
+			preview.paint(panel.Screen(), mesh, scale, now)
+			panel.PaintOver(frame.Input, session.build)
+		default:
 			panel.Paint(frame.Input, session.build)
 		}
 		session.measure(frame, renderer, time.Since(frameStart), networkTime, now)

@@ -4,17 +4,13 @@ package main
 
 import (
 	"errors"
-	"math"
 
 	"github.com/akrck02/go-3ds/keyboard"
 	"github.com/akrck02/go-3ds/storage"
 	"github.com/akrck02/go-renderer/ctr"
-	"github.com/akrck02/go-renderer/graphics"
-	"github.com/akrck02/go-renderer/models"
 	"github.com/akrck02/go-renderer/scene"
 
 	"ships3d/client3ds/account"
-	"ships3d/client3ds/flight"
 	"ships3d/client3ds/profile"
 	"ships3d/client3ds/ship"
 )
@@ -313,30 +309,4 @@ func (session *session) logOut() {
 func (session *session) forgetSession() {
 	session.account = account.Session{}
 	session.remember(func(remembered *profile.Profile) { remembered.Token, remembered.Username = "", "" })
-}
-
-// The ship screen's view: the ship this big, this far ahead and a little below the middle, tipped
-// toward the camera, turning once every few seconds.
-const (
-	previewRadius         = 7
-	previewTilt           = 0.35 // radians
-	previewTurnsPerSecond = 0.12
-)
-
-var previewPosition = flight.Vector{0, -2.5, 24}
-
-// showPreview turns the chosen ship slowly in front of the camera, on the ship screen.
-func (world *world) showPreview(mesh *scene.Mesh, scale, now float64, view *models.Camera) {
-	*view = titleCamera
-	world.view.Eye, world.view.Target = flight.Vector{}, flight.Forward
-	world.own.Hidden, world.reticle.Hidden = true, true
-	dustCellsAround(world.dust, flight.Vector{})
-	world.sky.Transform = graphics.Identity()
-	if mesh == nil {
-		world.title.Hidden = true
-		return
-	}
-	turn := flight.FromEulerXYZ(previewTilt, now*previewTurnsPerSecond*2*math.Pi, 0)
-	world.title.Mesh, world.title.Hidden = mesh, false
-	world.title.Transform = transformOf(previewPosition, turn, scale)
 }

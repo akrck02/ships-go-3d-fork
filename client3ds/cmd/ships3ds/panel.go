@@ -86,12 +86,12 @@ func (session *session) buildEntering(context *ui.Context) {
 	})
 }
 
-// buildShipChoice is the ship screen's touch screen: the ship's name between arrows, and Fly.
+// buildShipChoice is the ship screen's touch screen, over the turning ship: the name between
+// arrows at the top, Fly at the bottom.
 func (session *session) buildShipChoice(context *ui.Context) {
-	centred(context, func() {
-		if session.status != "" {
-			context.Caption(session.status)
-		}
+	layout := ui.Layout{Direction: ui.Vertical, Width: ui.Fixed(ctr.BottomWidth), Height: ui.Fixed(ctr.BottomHeight), AlignX: ui.Center,
+		Padding: ui.Padding{Top: shipChoiceMargin, Bottom: shipChoiceMargin}, Gap: 4}
+	context.Box(layout, func() {
 		context.Row(func() {
 			if context.IconButton("chevron-left", "") {
 				session.previousShip()
@@ -104,12 +104,19 @@ func (session *session) buildShipChoice(context *ui.Context) {
 			}
 		})
 		context.Caption(strconv.Itoa(session.ship+1) + " of " + strconv.Itoa(len(session.ships)) + "  ·  " + session.playerName())
+		if session.status != "" {
+			context.Caption(session.status)
+		}
+		context.Spacer() // the turning ship shows here
 		if context.IconButton("rocket", "Fly") {
 			session.connect()
 		}
 		context.Caption("A flies  ·  START: options")
 	})
 }
+
+// shipChoiceMargin is the room above the arrows and below Fly, in pixels.
+const shipChoiceMargin = 8
 
 // buildRestartWarning asks before a change of server or account, which starts the game again.
 func (session *session) buildRestartWarning(context *ui.Context) {
