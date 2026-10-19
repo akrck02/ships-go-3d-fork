@@ -143,13 +143,17 @@ func (session *session) buildGame(context *ui.Context) {
 // buildSettings offers how the circle pad flies.
 func (session *session) buildSettings(context *ui.Context) {
 	context.Toggle("Up raises the nose", &session.options.invertPitch)
+	if context.Toggle("Steer by tilting", &session.options.gyroscope) {
+		session.tilt.Centre() // from where the console is held now
+	}
 	context.Row(func() {
 		context.Text("Fine aim", ui.TextStyle{})
 		context.Spacer()
 		context.Text(strconv.Itoa(int(session.options.precision*100+0.5))+" %", ui.TextStyle{})
 	})
 	context.SliderStep("precision", &session.options.precision, 0, 1, 0.1)
-	context.Caption("Fine aim makes the circle pad softer near its centre.")
+	context.Caption("Fine aim: the circle pad softer near its centre.")
+	context.Caption("L centres the tilt where you hold the console.")
 }
 
 // remoteLines are the other players' scores, best first.

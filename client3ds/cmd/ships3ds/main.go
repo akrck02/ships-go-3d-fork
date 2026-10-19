@@ -32,6 +32,7 @@ import (
 	"ships3d/client3ds/game"
 	"ships3d/client3ds/protocol"
 	"ships3d/client3ds/radar"
+	"ships3d/client3ds/tilt"
 	"ships3d/client3ds/websocket"
 )
 
@@ -120,8 +121,10 @@ type session struct {
 	figures    figures.Counter
 	ship       int // index in guestShips
 	options    options
-	heapBytes  uint64  // the heap's size, read now and then
-	memoryAt   float64 // when it was read, in seconds
+	tilt       tilt.Tilt
+	gyroscope  app.Gyroscope // this frame's, for the Figures tab
+	heapBytes  uint64        // the heap's size, read now and then
+	memoryAt   float64       // when it was read, in seconds
 }
 
 // maximumServerLength fits a name or an address and its port.
@@ -228,7 +231,12 @@ func (session *session) exchange(frame app.Frame, now float64) {
 	if session.game.Welcomed {
 		session.status = "Playing on " + session.server
 	}
-	controls, firing := controlsOf(frame, session.options), frame.Reading.Held&ctr.ButtonA != 0
+	tiltOf(&session.tilt, frame)
+	if frame.Pressed&ctr.ButtonL != 0 {
+		session.tilt.Centre()
+	}
+	firing := frame.Reading.Held&fireButtons != 0
+	controls := controlsOf(frame, session.options, session.tilt)
 	if session.menuOpen {
 		controls, firing = flight.Controls{}, false // the ship flies on straight while the options are open
 	}
@@ -286,6 +294,7 @@ func (session *session) measure(frame app.Frame, renderer *ctr.SceneRenderer, pr
 	if session.game.SnapshotAt > 0 {
 		delay = now - session.game.SnapshotAt
 	}
+	session.gyroscope = frame.Gyroscope
 	session.figures.AddFrame(figures.Frame{
 		Seconds:               frame.Seconds,
 		ProcessorMilliseconds: float32(processor.Seconds() * 1000),
@@ -311,6 +320,7 @@ var guestShips = []struct{ id, name string }{
 type options struct {
 	invertPitch bool    // up on the circle pad raises the nose, instead of a plane's way
 	precision   float32 // 0 to 1: how much softer the circle pad is near its centre
+	gyroscope   bool    // tilting the console steers too
 }
 
 var defaultOptions = options{precision: 0.5}

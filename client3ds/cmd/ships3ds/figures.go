@@ -3,6 +3,7 @@
 package main
 
 import (
+	"math"
 	"strconv"
 
 	ui "github.com/akrck02/go-ui"
@@ -61,10 +62,29 @@ func (session *session) buildFigureChips(context *ui.Context, judged func(bool) 
 		context.Chip("radio", strconv.Itoa(int(shown.SnapshotDelayMilliseconds))+" ms since snapshot", judged(shown.SnapshotDelayMilliseconds < 2*1000/float32(max(session.game.Settings.TickRate, 1))))
 		context.Chip("users", strconv.Itoa(shown.Players)+" players", plain)
 	})
+	context.Caption("Gyroscope (degrees a second, then the tilt)")
+	gyroscope := session.gyroscope
+	context.Row(func() {
+		context.Chip("rotate-cw", "roll "+signed(gyroscope.Roll), plain)
+		context.Chip("arrow-up-down", "pitch "+signed(gyroscope.Pitch), plain)
+		context.Chip("compass", "yaw "+signed(gyroscope.Yaw), plain)
+	})
+	context.Row(func() {
+		context.Chip("move", "tilt "+signed(session.tilt.Pitch)+" / steer "+signed(session.tilt.Steer), plain)
+	})
 }
 
 // tenths writes a number with one decimal.
 func tenths(value float32) string {
 	whole := int(value*10 + 0.5)
 	return strconv.Itoa(whole/10) + "." + strconv.Itoa(whole%10)
+}
+
+// signed writes a whole number with its sign.
+func signed(value float64) string {
+	rounded := int(math.Round(value))
+	if rounded > 0 {
+		return "+" + strconv.Itoa(rounded)
+	}
+	return strconv.Itoa(rounded)
 }
