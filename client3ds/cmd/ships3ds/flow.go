@@ -360,7 +360,8 @@ func (session *session) keepLog() {
 		}
 		session.log.add("figures: " + strconv.Itoa(shown.FramesPerSecond) + " fps, net " + strconv.Itoa(int(shown.NetworkMilliseconds)) +
 			" ms, in " + strconv.Itoa(shown.BytesIn) + " B/s, out " + strconv.Itoa(shown.BytesOut) + " B/s, pending " + strconv.Itoa(pending) +
-			" B, skipped " + strconv.Itoa(session.skipped) + ", players " + strconv.Itoa(shown.Players))
+			" B, skipped " + strconv.Itoa(session.skipped) + ", players " + strconv.Itoa(shown.Players) +
+			", music heard " + strconv.Itoa(int(session.sounds.musicSeconds())) + " s")
 		session.skipped = 0
 	}
 }

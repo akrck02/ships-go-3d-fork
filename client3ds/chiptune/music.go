@@ -14,6 +14,11 @@ type Music struct {
 	hat    float64    // the hi-hat's noise, low-passed
 	random *rand.Rand
 	Volume float64
+
+	// The notes of the step being played, worked out once a step rather than once a sample: the
+	// console's processor has little to spare.
+	step               int
+	bassStep, arpeggio float64 // phase steps a sample
 }
 
 // The music's tempo and progression: four chords of two bars each, in A minor.
@@ -28,7 +33,7 @@ var chords = [][3]int{{0, 3, 7}, {-4, 0, 3}, {3, 7, 10}, {-2, 2, 5}}
 
 // NewMusic is the loop at a volume from 0 to 1.
 func NewMusic(volume float64) *Music {
-	return &Music{random: rand.New(rand.NewPCG(1, 1)), Volume: volume}
+	return &Music{random: rand.New(rand.NewPCG(1, 1)), Volume: volume, step: -1}
 }
 
 // Format is the music's: SampleRate, one channel.
@@ -36,26 +41,22 @@ func (music *Music) Format() (sampleRate, channels int) { return SampleRate, 1 }
 
 // Rewind starts the music again.
 func (music *Music) Rewind() error {
-	music.frame, music.phases, music.hat = 0, [2]float64{}, 0
+	music.frame, music.phases, music.hat, music.step = 0, [2]float64{}, 0, -1
 	return nil
 }
 
 // Read fills samples; the music never ends.
 func (music *Music) Read(samples []float32) (int, error) {
 	stepFrames := SampleRate * 60 / (beatsPerMinute * stepsPerBeat)
+	arpeggioShape := square(0.25)
 	for index := range samples {
 		step := music.frame / stepFrames
-		inStep := float64(music.frame%stepFrames) / float64(stepFrames)
-		chord := chords[(step/stepsPerChord)%len(chords)]
-		// The bass plays the root on each beat, an octave down on the off-beats.
-		bassNote := chord[0] - 24
-		if (step/2)%2 == 1 {
-			bassNote -= 12
+		if step != music.step {
+			music.startStep(step)
 		}
-		bass := music.voice(0, frequencyOf(bassNote), triangle) * 0.45 * (1 - 0.5*inStep)
-		// The arpeggio climbs the chord's notes, one each sixteenth, an octave up every other bar.
-		arpeggioNote := chord[step%3] + 12*((step/16)%2)
-		arpeggio := music.voice(1, frequencyOf(arpeggioNote), square(0.25)) * 0.14 * math.Max(0, 1-1.6*inStep)
+		inStep := float64(music.frame%stepFrames) / float64(stepFrames)
+		bass := music.advance(0, music.bassStep, triangle) * 0.45 * (1 - 0.5*inStep)
+		arpeggio := music.advance(1, music.arpeggio, arpeggioShape) * 0.14 * math.Max(0, 1-1.6*inStep)
 		// A hi-hat on every off-beat eighth.
 		hat := 0.0
 		if step%2 == 1 && inStep < 0.3 {
@@ -68,9 +69,27 @@ func (music *Music) Read(samples []float32) (int, error) {
 	return len(samples), nil
 }
 
-func (music *Music) voice(index int, frequency float64, shape wave) float64 {
-	music.phases[index] = math.Mod(music.phases[index]+frequency/SampleRate, 1)
-	return shape(music.phases[index])
+// startStep works out a step's notes: the bass plays the chord's root on each beat, an octave
+// down on the off-beats; the arpeggio climbs the chord's notes, an octave up every other bar.
+func (music *Music) startStep(step int) {
+	music.step = step
+	chord := chords[(step/stepsPerChord)%len(chords)]
+	bassNote := chord[0] - 24
+	if (step/2)%2 == 1 {
+		bassNote -= 12
+	}
+	music.bassStep = frequencyOf(bassNote) / SampleRate
+	music.arpeggio = frequencyOf(chord[step%3]+12*((step/16)%2)) / SampleRate
+}
+
+// advance moves a voice's phase on one sample and returns its shape there.
+func (music *Music) advance(index int, phaseStep float64, shape wave) float64 {
+	phase := music.phases[index] + phaseStep
+	if phase >= 1 {
+		phase--
+	}
+	music.phases[index] = phase
+	return shape(phase)
 }
 
 // frequencyOf is a note's frequency, in semitones from the A above middle C (440 Hz).

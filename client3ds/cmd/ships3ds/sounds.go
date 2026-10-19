@@ -118,3 +118,12 @@ func (all *sounds) setVolumes(effects, music float64) {
 	all.effectsVolume, all.musicVolume = effects, music
 	all.playMusic()
 }
+
+// musicSeconds is how much of the music has been heard, for the log: it stops growing when the DSP
+// stops being fed.
+func (all *sounds) musicSeconds() float64 {
+	if all.music == nil {
+		return 0
+	}
+	return all.music.Position().Seconds()
+}
