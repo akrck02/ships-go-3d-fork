@@ -119,9 +119,9 @@ func (session *session) paintReadings(area draw2d.Rect, drawing *draw2d.List) {
 	// The zoom rather than the distance to the edge: the game's distances have no unit a player
 	// knows. The widest range is ×1.
 	zoom := radar.Ranges[len(radar.Ranges)-1] / distance
-	rangeText := "Zoom x" + strconv.Itoa(int(zoom)) + "  (up/down)"
-	drawing.Text(rangeText, area.X+labelMargin, area.Y+area.Height-labelMargin, labelSize, draw2d.Regular, mapLabel)
-	drawing.Text("START: options", area.X+area.Width-112, area.Y+area.Height-labelMargin, labelSize, draw2d.Regular, mapLabel)
+	rangeText := "ZOOM x" + strconv.Itoa(int(zoom)) + " UP/DOWN"
+	drawing.Text(rangeText, area.X+labelMargin, area.Y+area.Height-labelMargin, labelPixels, draw2d.Mono, mapLabel)
+	drawing.Text("START MENU", area.X+area.Width-labelMargin-10*labelPixels, area.Y+area.Height-labelMargin, labelPixels, draw2d.Mono, mapLabel)
 }
 
 // paintSweep draws the radar's turning line as a row of dots, since the draw list has no lines,

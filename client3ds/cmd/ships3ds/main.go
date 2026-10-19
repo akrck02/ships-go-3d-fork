@@ -20,7 +20,9 @@ import (
 	"github.com/akrck02/go-3ds/bottom"
 	"github.com/akrck02/go-3ds/network"
 	"github.com/akrck02/go-renderer/ctr"
+	"github.com/akrck02/go-renderer/draw2d"
 	"github.com/akrck02/go-renderer/models"
+	"github.com/akrck02/go-renderer/opengl/overlay"
 
 	"ships3d/client3ds/account"
 	"ships3d/client3ds/chase"
@@ -57,6 +59,11 @@ func main() {
 	}
 	defer screen.Close()
 	usePixelFonts()
+	measurer, err := overlay.NewMeasurer()
+	if err != nil {
+		println(err.Error())
+		return
+	}
 	panel, err := bottom.New(spaceTheme())
 	if err != nil {
 		println(err.Error())
@@ -84,6 +91,7 @@ func main() {
 	}
 
 	session := newSession(loadProfile())
+	session.measurer = measurer
 	session.log = newLogbook()
 	session.log.add("Ships 3D for the 3DS starts; server " + session.profile.Server + ", logged in: " + strconv.FormatBool(session.account.Token != ""))
 	session.log.connectRemote()
@@ -171,8 +179,8 @@ type session struct {
 	confirming change // a change of server or account waiting for "the game will restart"
 	circleSide int    // where the circle pad was last frame on the ship screen: -1, 0 or 1
 	menuOpen   bool   // the options, over the ship screen or the radar
-	tab        string // the chosen tab of the options
-	tabIndex   int
+	menu       menu   // where the cursor is in the touch screen's menus
+	measurer   draw2d.Measurer
 	quitting   bool
 	mapRange   int // index in radar.Ranges
 	scanner    *radar.Scanner
@@ -251,6 +259,11 @@ func (session *session) press(frame app.Frame) bool {
 	if session.quitting {
 		return false
 	}
+	input := menuInput{pressed: pressed, touchX: float32(frame.Reading.TouchX), touchY: float32(frame.Reading.TouchY)}
+	if session.confirming != noChange {
+		session.pressPages(input)
+		return true
+	}
 	switch session.screen {
 	case titleScreen:
 		if pressed&(ctr.ButtonTouch|ctr.ButtonA) != 0 {
@@ -258,13 +271,19 @@ func (session *session) press(frame app.Frame) bool {
 		}
 		return pressed&ctr.ButtonStart == 0
 	case enteringScreen:
+		session.pressPages(input)
 		return true
 	case shipScreen:
-		session.pressOnShipScreen(pressed, frame.Reading)
+		session.pressOnShipScreen(pressed, frame.Reading, input)
 		return true
 	}
 	if pressed&ctr.ButtonStart != 0 {
 		session.toggleMenu()
+		return true
+	}
+	if session.menuOpen || !session.game.Welcomed {
+		session.pressPages(input)
+		return true
 	}
 	if pressed&ctr.ButtonUp != 0 {
 		session.mapRange = max(session.mapRange-1, 0)
@@ -326,7 +345,7 @@ func (session *session) exchange(frame app.Frame, now float64) {
 		session.status = "Playing on " + session.profile.Server
 	}
 	tiltOf(&session.tilt, frame)
-	if frame.Pressed&ctr.ButtonL != 0 {
+	if frame.Pressed&ctr.ButtonL != 0 && !session.menuOpen {
 		session.tilt.Centre()
 	}
 	firing := frame.Reading.Held&fireButtons != 0
@@ -395,7 +414,7 @@ func (session *session) close() {
 // waiting for the screen.
 func (session *session) measure(frame app.Frame, renderer *ctr.SceneRenderer, processor, network time.Duration, now float64) {
 	statistics := renderer.Statistics(processor)
-	if session.menuOpen && session.tab == figuresTab && now-session.memoryAt >= memoryEverySeconds {
+	if session.menuOpen && session.menu.page == figuresPageIndex && now-session.memoryAt >= memoryEverySeconds {
 		// Reading the heap walks it, which takes most of a frame: only while shown, once a second.
 		var memory runtime.MemStats
 		runtime.ReadMemStats(&memory)

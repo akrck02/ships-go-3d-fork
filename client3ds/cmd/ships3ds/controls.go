@@ -5,7 +5,6 @@ package main
 import (
 	"github.com/akrck02/go-3ds/app"
 	"github.com/akrck02/go-renderer/ctr"
-	ui "github.com/akrck02/go-ui"
 
 	"ships3d/client3ds/flight"
 	"ships3d/client3ds/profile"
@@ -61,30 +60,12 @@ var controlLines = [][2]string{
 	{"C-stick", "Roll, faster and slower"},
 	{"Left / Right", "Roll"},
 	{"ZR / ZL", "Faster / slower (also X / B)"},
-	{"Tilting", "Nose and turn, if on in Settings"},
+	{"Tilting", "Nose and turn, if on in Setup"},
 	{"L", "Centre the tilt"},
 	{"Left / Right", "Ship to fly, on the ship screen"},
 	{"Up / Down", "Radar zoom"},
 	{"3D slider", "Depth"},
 	{"START", "Options"},
-}
-
-// buildControls lists the controls, two columns, scrolled with a finger when they don't fit.
-func buildControls(context *ui.Context) {
-	context.ScrollArea("controls", ui.Layout{Direction: ui.Vertical, Width: ui.Grow(), Height: ui.Grow()}, func() {
-		buildControlLines(context)
-	})
-}
-
-func buildControlLines(context *ui.Context) {
-	for _, line := range controlLines {
-		context.Row(func() {
-			context.Box(ui.Layout{Width: ui.Fixed(controlNameWidth)}, func() {
-				context.Text(line[0], ui.TextStyle{Weight: boldWeight})
-			})
-			context.Text(line[1], ui.TextStyle{})
-		})
-	}
 }
 
 // controlNameWidth is the first column, in pixels.
