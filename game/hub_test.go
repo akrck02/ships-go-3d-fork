@@ -192,6 +192,15 @@ func TestGuestCannotFlyAProject(t *testing.T) {
 	}
 }
 
+func TestErrorsUseTheRequestedLanguage(t *testing.T) {
+	s := newTestServer(t)
+	guest := s.connect(t, "?lang=eu")
+	guest.send(map[string]any{"type": msgJoin, "shipId": "64b000000000000000000000"})
+	if msg := guest.expect(msgError); msg["message"] != "ontzi hori ez dago eskuragarri" {
+		t.Errorf("message = %q", msg["message"])
+	}
+}
+
 func TestHitKillsAndRespawnWaitsForDelay(t *testing.T) {
 	s := newTestServer(t)
 	shooter := s.connect(t, "?user=shooter")

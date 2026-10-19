@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 
+	"ships3d/i18n"
 	"ships3d/models"
 )
 
@@ -177,6 +178,7 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c := newClient(conn)
+	c.lang = i18n.FromRequest(r)
 	go c.writePump()
 
 	id := uuid.NewString()
@@ -200,7 +202,7 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 		if !c.allowMessage(h.now()) {
 			log.Printf("game: disconnecting %s, too many messages (sustained over %.0f/s)", id, messageRate)
 			// Say why, rather than just dropping the connection.
-			h.sendTo(c, errorMsg{Type: msgError, Message: "Disconnected: your connection sent too many messages."})
+			h.sendTo(c, errorMsg{Type: msgError, Message: i18n.New("tooManyMessages").In(c.lang)})
 			time.Sleep(rateLimitGrace)
 			return
 		}
@@ -250,12 +252,12 @@ func (h *Hub) join(id string, c *client, identity Identity, msg joinMsg) {
 	// Loaded outside the lock: it may hit the database.
 	project, err := h.loadShip(identity, msg.ShipId)
 	if err != nil || project == nil {
-		h.sendTo(c, errorMsg{Type: msgError, Message: ErrShipNotAllowed.Error()})
+		h.sendTo(c, errorMsg{Type: msgError, Message: i18n.New("shipNotAllowed").In(c.lang)})
 		return
 	}
 	radius := project.BoundingRadius()
 	if radius <= 0 {
-		h.sendTo(c, errorMsg{Type: msgError, Message: "that ship has no visible parts"})
+		h.sendTo(c, errorMsg{Type: msgError, Message: i18n.New("shipNoVisibleParts").In(c.lang)})
 		return
 	}
 
@@ -263,7 +265,7 @@ func (h *Hub) join(id string, c *client, identity Identity, msg joinMsg) {
 		id:       id,
 		client:   c,
 		identity: identity,
-		name:     playerName(identity, msg.Name),
+		name:     playerName(identity, msg.Name, c.lang),
 		ship:     ShipInfo{Id: msg.ShipId, Name: project.Name, Layers: visibleLayers(project)},
 		scale:    h.settings.ShipRadius / radius,
 		life:     h.settings.MaxLife,
@@ -440,7 +442,7 @@ func (h *Hub) PlayerCount() int {
 // playerName is the logged-in username, or a cleaned-up version of the name a
 // guest typed. Guest names are free text from strangers, so control characters
 // are dropped and the length capped; clients must still render it as text.
-func playerName(identity Identity, requested string) string {
+func playerName(identity Identity, requested string, lang i18n.Lang) string {
 	if !identity.Guest() {
 		return identity.Username
 	}
@@ -454,7 +456,7 @@ func playerName(identity Identity, requested string) string {
 		name = string([]rune(name)[:maxNameLength])
 	}
 	if name == "" {
-		name = "Guest"
+		name = i18n.New("guest").In(lang)
 	}
 	return name
 }

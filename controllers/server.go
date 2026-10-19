@@ -12,6 +12,7 @@ import (
 	"ships3d/config"
 	dataaccess "ships3d/dataAccess"
 	"ships3d/game"
+	"ships3d/i18n"
 )
 
 // maxBodyBytes caps a request body. The largest legitimate one is a project
@@ -39,6 +40,7 @@ func (s *Server) Router() *gin.Engine {
 	corsConfig.AllowOrigins = s.cfg.AllowedOrigins
 	corsConfig.AllowCredentials = true
 	corsConfig.AddAllowMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+	corsConfig.AddAllowHeaders("Accept-Language")
 	if len(corsConfig.AllowOrigins) == 0 {
 		// gin-contrib/cors refuses an empty list; with no configured
 		// origins, only same-origin requests (which CORS doesn't affect)
@@ -75,6 +77,13 @@ func (s *Server) checkOrigin(r *http.Request) bool {
 	return err == nil && strings.EqualFold(u.Host, r.Host)
 }
 
-func errorResponse(c *gin.Context, status int, messages ...string) {
-	c.AbortWithStatusJSON(status, gin.H{"success": false, "errors": messages})
+// errorResponse answers with the messages in the language the request asks
+// for (see i18n.FromRequest).
+func errorResponse(c *gin.Context, status int, messages ...i18n.Message) {
+	lang := i18n.FromRequest(c.Request)
+	texts := make([]string, len(messages))
+	for i, message := range messages {
+		texts[i] = message.In(lang)
+	}
+	c.AbortWithStatusJSON(status, gin.H{"success": false, "errors": texts})
 }

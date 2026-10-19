@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+
+	"ships3d/i18n"
 )
 
 const (
@@ -45,6 +47,8 @@ type client struct {
 	send      chan []byte
 	closeOnce sync.Once
 	done      chan struct{}
+	// lang is the language the page asked for, for messages to this player.
+	lang i18n.Lang
 
 	// Token bucket (see messageRate), only touched by the reader goroutine.
 	tokens   float64
