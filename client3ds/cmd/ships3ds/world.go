@@ -59,6 +59,7 @@ type world struct {
 	candidates             []turning.Candidate // this frame's, reused
 	candidateIds           []string
 	chooser                turning.Chooser
+	view                   chase.View // what the camera saw last, to leave out the ships it can't
 }
 
 func newWorld() *world {
@@ -97,9 +98,6 @@ func (world *world) show(state *game.Game, view *models.Camera, seconds float64)
 	}
 	world.own.Hidden = !state.Alive
 	place(world.own, transformOf(state.Own.Position, state.Own.Rotation, scale))
-	world.showRemotes(state)
-	world.showBullets(state)
-	world.placeReticle(state)
 	if state.Alive && !world.wasAlive {
 		world.camera.Reset() // back from a respawn, far from the wreck
 	}
@@ -107,6 +105,9 @@ func (world *world) show(state *game.Game, view *models.Camera, seconds float64)
 	if state.Alive {
 		world.placeCamera(state, view, seconds) // dead, the camera watches the wreck from where it was
 	}
+	world.showRemotes(state)
+	world.showBullets(state)
+	world.placeReticle(state)
 }
 
 // meshKey is a design at a level of detail.
@@ -138,6 +139,7 @@ const (
 	turnsPerFrame  = 2
 	coarseDistance = 60    // world units: from here a ship is a few dozen pixels wide, and fine detail too dear to bake
 	unnoticedTurn  = 0.005 // radians: a quarter of a degree, too little to show
+	sightDistance  = 700   // world units: farther, a ship is a pixel or two, and isn't drawn
 )
 
 func (world *world) showRemotes(state *game.Game) {
@@ -149,14 +151,20 @@ func (world *world) showRemotes(state *game.Game) {
 	}
 	world.candidates, world.candidateIds = world.candidates[:0], world.candidateIds[:0]
 	for id, player := range state.Remotes {
+		// Only the ships the camera can see are drawn, and only those get a mesh: the radar
+		// shows the rest.
+		visible := !player.Player.Dead && world.view.Sees(player.Shown.Position, state.Settings.ShipRadius, sightDistance)
 		remote, found := world.remotes[id]
+		if !found && !visible {
+			continue
+		}
 		if !found {
 			remote = &remoteShip{node: world.reuseOrAddNode(), rotation: player.Shown.Rotation, detail: ship.Coarse}
 			remote.node.Mesh = ownCopy(world.shipMesh(player.Player.Ship.Id, player.Player.Ship.Layers, remote.detail))
 			world.remotes[id] = remote
 		}
-		remote.node.Hidden = player.Player.Dead
-		if remote.node.Hidden {
+		remote.node.Hidden = !visible
+		if !visible {
 			continue
 		}
 		distance := player.Shown.Position.Subtract(state.Own.Position).Length()
@@ -178,6 +186,9 @@ func (world *world) showRemotes(state *game.Game) {
 	}
 	for id, remote := range world.remotes {
 		player := state.Remotes[id]
+		if remote.node.Hidden {
+			continue
+		}
 		// Where it is now, turned as its light was last worked out: a few frames late at most.
 		place(remote.node, transformOf(player.Shown.Position, remote.rotation, player.Player.Scale))
 	}
@@ -238,6 +249,7 @@ func (world *world) showBullets(state *game.Game) {
 
 func (world *world) placeCamera(state *game.Game, view *models.Camera, seconds float64) {
 	chased := world.camera.Follow(state.Own, state.Settings.ShipRadius, seconds)
+	world.view = chased
 	view.Position = vectorOf(chased.Eye, 1)
 	view.Target = vectorOf(chased.Target, 1)
 	view.Up = vectorOf(chased.Up, 0)

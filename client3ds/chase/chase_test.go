@@ -39,3 +39,23 @@ func TestResetJumpsToTheShip(t *testing.T) {
 		t.Fatalf("camera at %v, want at the ship", camera.Position)
 	}
 }
+
+func TestTheViewSeesAheadAndNotBehind(t *testing.T) {
+	view := View{Eye: flight.Vector{}, Target: flight.Vector{0, 0, 1}, Up: flight.Vector{0, 1, 0}}
+	cases := map[string]struct {
+		centre flight.Vector
+		want   bool
+	}{
+		"straight ahead":           {flight.Vector{0, 0, 100}, true},
+		"behind":                   {flight.Vector{0, 0, -100}, false},
+		"far out to the side":      {flight.Vector{100, 0, 10}, false},
+		"at the edge, but big":     {flight.Vector{60, 0, 100}, true},
+		"beyond the farthest":      {flight.Vector{0, 0, 900}, false},
+		"around the camera itself": {flight.Vector{0, 0, -1}, true},
+	}
+	for name, test := range cases {
+		if got := view.Sees(test.centre, 4, 600); got != test.want {
+			t.Errorf("%s: got %v, want %v", name, got, test.want)
+		}
+	}
+}

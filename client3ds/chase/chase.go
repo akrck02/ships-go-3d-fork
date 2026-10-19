@@ -48,3 +48,30 @@ func (camera *Camera) Follow(ship flight.State, shipRadius, seconds float64) Vie
 
 // Reset makes the next Follow jump to the ship: after a respawn, far from where it was.
 func (camera *Camera) Reset() { camera.started = false }
+
+// The view the camera sees, as go-renderer draws it: a vertical field of view of a quarter turn
+// over two (models.Camera's default) on the top screen's 400 × 240.
+const (
+	verticalFieldOfView = math.Pi / 4
+	screenAspect        = 400.0 / 240.0
+)
+
+// Sees tells whether a sphere of radius at centre can show on the screen from this view, and is
+// nearer than farthest: whether a ship there needs drawing at all. It errs on the side of yes,
+// testing a cone around the screen's corners rather than its four edges.
+func (view View) Sees(centre flight.Vector, radius, farthest float64) bool {
+	toCentre := centre.Subtract(view.Eye)
+	distance := toCentre.Length()
+	if distance <= radius {
+		return true // the camera is inside it
+	}
+	if distance-radius > farthest {
+		return false
+	}
+	forward := view.Target.Subtract(view.Eye)
+	forward = forward.Times(1 / forward.Length())
+	verticalTangent := math.Tan(verticalFieldOfView / 2)
+	cornerAngle := math.Atan(math.Hypot(verticalTangent, verticalTangent*screenAspect))
+	angle := math.Acos(max(-1, min(1, toCentre.Dot(forward)/distance)))
+	return angle-math.Asin(min(1, radius/distance)) <= cornerAngle
+}
