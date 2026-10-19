@@ -5,7 +5,7 @@ A client for the game server in this repository, for the New Nintendo 3DS (homeb
 [docs/proposals/1-nintendo-3ds-client.md](../docs/proposals/1-nintendo-3ds-client.md).
 
 ```bash
-tinygo build -target=nintendo3ds -ldflags "-X main.host=192.168.1.20" -o ships3ds.3dsx ./cmd/ships3ds
+tinygo build -target=nintendo3ds -ldflags "-X main.server=192.168.1.20:3000" -o ships3ds.3dsx ./cmd/ships3ds
 ```
 
 It needs [TinyGo for 3DS](https://github.com/akrck02/tinygo-3ds) and devkitPro's libraries, and

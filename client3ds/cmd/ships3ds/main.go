@@ -1,17 +1,13 @@
 //go:build nintendo3ds
 
-// Ships 3D on the Nintendo 3DS: it joins a game of the server in this repository as a guest, flies
-// a built-in ship and shows the others in 3D on the top screen, with the score on the touch
-// screen. The server's address and the ship are set when building:
+// Ships 3D on the Nintendo 3DS: it joins a game of the server in this repository, as a guest or
+// logged in, flies a ship and shows the others in 3D on the top screen, with a radar on the touch
+// screen. It starts with the real server; another one is typed on the system keyboard, or set
+// when building:
 //
-//	tinygo build -target=nintendo3ds -ldflags "-X main.host=192.168.1.20 -X main.port=3000" -o ships3ds.3dsx ./cmd/ships3ds
+//	tinygo build -target=nintendo3ds -ldflags "-X main.server=192.168.1.20:3000" -o ships3ds.3dsx ./cmd/ships3ds
 //
-// It opens on a title screen; touching it leads to the server's address, typed on the system
-// keyboard. In the game the touch screen is a map of the ships around, turning with ours.
-//
-// Circle pad: nose up and down, turn. L and R: roll. X and B: faster and slower. A: fire, and fly
-// again after dying. Up and down on the cross: the map's range. START: the options (leave the
-// game, quit).
+// The controls are listed in the Controls tab (controls.go).
 package main
 
 import (
@@ -37,11 +33,11 @@ import (
 	"ships3d/client3ds/websocket"
 )
 
-// Set with -ldflags -X: where the server is, and the player's name.
+// Set with -ldflags -X: the server the game starts with, and a guest's name. The real server is
+// typed with https://, so the game talks TLS to it.
 var (
-	host = "192.168.1.2"
-	port = "3000"
-	name = "3DS"
+	server = "https://jonbul.ddns.net:3000"
+	name   = "3DS"
 )
 
 // websocketPath is where the server takes game connections (controllers/game.go).
@@ -142,7 +138,7 @@ type session struct {
 }
 
 func newSession() *session {
-	return &session{game: game.New(), server: host + ":" + port, status: "Choose the server and touch Connect", mapRange: radar.DefaultRange,
+	return &session{game: game.New(), server: server, status: "Choose the server and touch Connect", mapRange: radar.DefaultRange,
 		scanner: radar.NewScanner(), options: defaultOptions, blips: map[string]radar.Blip{}, ships: guestShips}
 }
 
