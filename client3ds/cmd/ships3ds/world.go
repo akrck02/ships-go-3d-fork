@@ -18,7 +18,7 @@ import (
 // radii.
 const (
 	cameraNear    = 0.5
-	cameraFar     = 2600 // past the sky and the world's edge
+	cameraFar     = 7000 // past the sky, which is past the world's edge
 	focalDistance = 15
 	eyeSeparation = 0.4 // with the 3D slider at its top
 )

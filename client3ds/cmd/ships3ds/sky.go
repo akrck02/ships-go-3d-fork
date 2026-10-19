@@ -17,14 +17,14 @@ import (
 // The space around the ships, as the browser's (ships-vue-3d, src/game/world.ts): a near-black
 // background, stars and three planets on a sky that follows the camera (so they never get
 // closer, and steer by), the world's edge as a faint grid, and dust that keeps around the ship to
-// show its speed. Distances are the browser's scaled to this camera's far plane.
+// show its speed. Distances are the browser's: the planets, at 4,800, stay behind every part of
+// the world's edge (a sphere of 1,500, never more than 3,000 away), so its lines cross over them.
 const (
-	skyRadius        = 2400
+	skyRadius        = 6000
 	starCount        = 1500
-	starSize         = 9 // world units at skyRadius: about a pixel and a half, as the browser's
+	starSize         = 22 // world units at skyRadius: about a pixel and a half, as the browser's
 	starSeed         = 11
 	planetDistance   = skyRadius * 0.8
-	browserSkyRadius = 6000 // the browser's sky, which its planets' sizes are given for
 	edgeLineWidth    = 3
 	edgeSubdivisions = 2   // the browser's icosahedron is finer: this keeps it to a few thousand triangles
 	dustCell         = 300 // the browser's dust box
@@ -71,7 +71,7 @@ func skyNode() *scene.Node {
 	node.Children = append(node.Children, &scene.Node{Name: "stars", Transform: graphics.Identity(), Mesh: stars()})
 	for _, planet := range planets {
 		direction := planet.direction.Times(1 / planet.direction.Length())
-		radius := planet.radius * planetDistance / (browserSkyRadius * 0.8)
+		radius := planet.radius
 		mesh := ship.Build([]protocol.Layer{{Visible: true, Parts: []protocol.Part{{
 			Type: "sphere", Scale: flight.Vector{2 * radius, 2 * radius, 2 * radius}, Color: planet.colour}}}}, ship.Fine)
 		mesh.Material = &scene.Material{Name: "planet", Kind: scene.KindLit, BaseColor: graphics.Vec4{1, 1, 1, 1}}
