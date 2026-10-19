@@ -277,8 +277,21 @@ func (session *session) buildSettings(context *ui.Context) {
 		changed = true
 	}
 	context.Caption("Fine aim: the circle pad softer near its centre. L centres the tilt.")
+	volume := func(label, name string, value *float32) {
+		context.Row(func() {
+			context.Text(label, ui.TextStyle{})
+			context.Spacer()
+			context.Text(strconv.Itoa(int(*value*100+0.5))+" %", ui.TextStyle{})
+		})
+		if context.SliderStep(name, value, 0, 1, 0.1) {
+			changed = true
+		}
+	}
+	volume("Effects", "effects", &settings.Effects)
+	volume("Music", "music", &settings.Music)
 	if changed {
 		session.remember(func(remembered *profile.Profile) { remembered.Settings = settings })
+		session.applyVolumes()
 	}
 }
 

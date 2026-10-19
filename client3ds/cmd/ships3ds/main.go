@@ -87,6 +87,12 @@ func main() {
 	session.log = newLogbook()
 	session.log.add("Ships 3D for the 3DS starts; server " + session.profile.Server + ", logged in: " + strconv.FormatBool(session.account.Token != ""))
 	session.log.connectRemote()
+	sfx, err := newSounds()
+	if err != nil {
+		session.log.add("no sound: " + err.Error())
+	}
+	session.sounds = sfx
+	session.applyVolumes()
 	world := newWorld()
 	start := time.Now()
 	view := models.Camera{Far: cameraFar, Near: cameraNear, FieldOfView: chase.FieldOfView}
@@ -99,7 +105,9 @@ func main() {
 		}
 		session.exchange(frame, now)
 		networkTime := time.Since(frameStart)
-		world.show(session.game, &view, frame.Seconds, now)
+		events := session.game.TakeEvents()
+		session.hear(events)
+		world.show(session.game, events, &view, frame.Seconds, now)
 		heading, caption := session.topHeading()
 		switch session.screen {
 		case titleScreen, enteringScreen:
@@ -177,6 +185,8 @@ type session struct {
 	heapBytes  uint64        // the heap's size, read now and then
 	memoryAt   float64       // when it was read, in seconds
 	log        *logbook
+	sounds     *sounds
+	edgeHeard  float64 // the crash the force field's sound was played for
 	logged     string  // the status last written to the log
 	figuresAt  float64 // when figures were last logged
 	skipped    int     // position updates skipped while the network was behind, since the last figures
@@ -231,6 +241,7 @@ func (session *session) connect() {
 	}
 	session.status = "Connecting to " + hostPort + "…"
 	session.screen = gameScreen
+	session.sounds.play(session.sounds.choose, 1)
 	session.remember(func(remembered *profile.Profile) { remembered.Ship = session.ships[session.ship].id })
 }
 
@@ -253,7 +264,7 @@ func (session *session) press(frame app.Frame) bool {
 		return true
 	}
 	if pressed&ctr.ButtonStart != 0 {
-		session.menuOpen = !session.menuOpen
+		session.toggleMenu()
 	}
 	if pressed&ctr.ButtonUp != 0 {
 		session.mapRange = max(session.mapRange-1, 0)
@@ -271,6 +282,7 @@ func (session *session) leave(status string) {
 	session.game, session.joined, session.menuOpen = game.New(), false, false
 	session.scanner = radar.NewScanner()
 	session.status, session.screen = status, shipScreen
+	session.sounds.play(session.sounds.back, 1)
 }
 
 // exchange reads what the server sent, moves the game on with the controls and sends the result.
@@ -292,6 +304,9 @@ func (session *session) exchange(frame app.Frame, now float64) {
 		session.figures.Received(len(text))
 		if message.Type == protocol.TypeError {
 			session.log.add("server says: " + message.Message)
+		}
+		if message.Type == protocol.TypeFire {
+			session.sounds.play(session.sounds.laser, otherShotsVolume)
 		}
 		session.game.Handle(message, states, now)
 	}
@@ -343,8 +358,11 @@ func (session *session) scan(now float64) {
 // replaces the one before, so sending a stale one behind a stalled network only adds to the pile.
 const stateBacklogBytes = 2048
 
-// stateStart is how every position update begins (protocol.State).
-const stateStart = `{"type":"state"`
+// How every position update and every shot begin (protocol.State, protocol.Fire).
+const (
+	stateStart = `{"type":"state"`
+	fireStart  = `{"type":"fire"`
+)
 
 func (session *session) send(text string) {
 	if session.client == nil {
@@ -353,6 +371,9 @@ func (session *session) send(text string) {
 	if strings.HasPrefix(text, stateStart) && session.connection.Pending() > stateBacklogBytes {
 		session.skipped++
 		return
+	}
+	if strings.HasPrefix(text, fireStart) {
+		session.sounds.play(session.sounds.laser, 1)
 	}
 	session.figures.Sent(len(text))
 	if err := session.client.Send(text); err != nil {

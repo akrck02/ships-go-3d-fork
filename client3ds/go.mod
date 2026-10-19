@@ -5,15 +5,22 @@ go 1.25.6
 require (
 	github.com/akrck02/go-3ds v0.0.0-00010101000000-000000000000
 	github.com/akrck02/go-renderer v0.0.0
+	github.com/akrck02/go-sound v0.0.0
 	github.com/akrck02/go-ui v0.0.0-20261018091606-e6c4eac3b690
 	github.com/gorilla/websocket v1.5.3
 )
 
 require (
+	github.com/ebitengine/oto/v3 v3.5.1 // indirect
+	github.com/ebitengine/purego v0.11.0 // indirect
+	github.com/jfreymuth/pulse v0.1.3 // indirect
 	golang.org/x/image v0.45.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 )
+
+// go-sound is built from a local copy too: its branch feature/sound, which plays on the 3DS.
+replace github.com/akrck02/go-sound => ../../go-sound
 
 // go-3ds is built from a local copy, with its network package (branch feature/network).
 replace github.com/akrck02/go-3ds => ../../go-3ds

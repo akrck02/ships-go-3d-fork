@@ -11,6 +11,8 @@ type Settings struct {
 	Precision   float32 `json:"precision"`   // 0 to 1: how much softer the circle pad is near its centre
 	Gyroscope   bool    `json:"gyroscope"`   // tilting the console steers too
 	FlatRadar   bool    `json:"flatRadar"`   // the touch screen's radar seen straight from above, as a map
+	Effects     float32 `json:"effects"`     // the sound effects' volume, 0 to 1
+	Music       float32 `json:"music"`       // the music's volume, 0 to 1
 }
 
 // Profile is everything remembered.
@@ -23,12 +25,16 @@ type Profile struct {
 	Settings Settings `json:"settings"`
 }
 
-// DefaultPrecision is how soft the circle pad is near its centre before the player says.
-const DefaultPrecision = 0.5
+// The settings before the player changes them.
+const (
+	DefaultPrecision = 0.5
+	DefaultEffects   = 0.8
+	DefaultMusic     = 0.6
+)
 
 // New is the profile of a first run, starting with server.
 func New(server string) Profile {
-	return Profile{Server: server, Settings: Settings{Precision: DefaultPrecision}}
+	return Profile{Server: server, Settings: Settings{Precision: DefaultPrecision, Effects: DefaultEffects, Music: DefaultMusic}}
 }
 
 // Read understands saved bytes, starting from a first run's profile with server: a field missing,

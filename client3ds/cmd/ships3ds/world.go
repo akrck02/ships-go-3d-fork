@@ -98,7 +98,7 @@ func newWorld() *world {
 }
 
 // show places everything where the game says, and the camera behind our ship.
-func (world *world) show(state *game.Game, view *models.Camera, seconds, now float64) {
+func (world *world) show(state *game.Game, events []game.Event, view *models.Camera, seconds, now float64) {
 	world.title.Hidden = true
 	world.now = now
 	if !state.Welcomed {
@@ -125,7 +125,7 @@ func (world *world) show(state *game.Game, view *models.Camera, seconds, now flo
 	world.placeSpace(state)
 	world.crash.show(state, world.edges, world.view.Eye, now, seconds)
 	world.shockwave.show(state, world.triangles, world.view.Eye, now)
-	for _, event := range state.TakeEvents() {
+	for _, event := range events {
 		world.bursts.start(event)
 	}
 	world.bursts.show(now, seconds)

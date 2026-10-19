@@ -13,6 +13,7 @@ import (
 	"github.com/akrck02/go-renderer/scene"
 
 	"ships3d/client3ds/account"
+	"ships3d/client3ds/game"
 	"ships3d/client3ds/profile"
 	"ships3d/client3ds/ship"
 )
@@ -102,6 +103,7 @@ func (session *session) betweenFrames() {
 // enter goes from the title to the remembered server: the touch screen says so this frame, and
 // the waiting happens between frames.
 func (session *session) enter() {
+	session.sounds.play(session.sounds.choose, 1)
 	session.screen, session.asking = enteringScreen, askEnter
 	session.status = "Connecting to " + session.profile.Server + "…"
 }
@@ -178,7 +180,7 @@ func (session *session) pressOnShipScreen(pressed ctr.Buttons, reading ctr.Readi
 	pushed := side != session.circleSide // pushed to a side this frame, not held there
 	session.circleSide = side
 	if pressed&ctr.ButtonStart != 0 {
-		session.menuOpen = !session.menuOpen
+		session.toggleMenu()
 	}
 	if session.menuOpen {
 		return
@@ -199,9 +201,23 @@ func (session *session) pressOnShipScreen(pressed ctr.Buttons, reading ctr.Readi
 
 func (session *session) previousShip() {
 	session.ship = (session.ship + len(session.ships) - 1) % len(session.ships)
+	session.sounds.play(session.sounds.move, 1)
 }
 
-func (session *session) nextShip() { session.ship = (session.ship + 1) % len(session.ships) }
+func (session *session) nextShip() {
+	session.ship = (session.ship + 1) % len(session.ships)
+	session.sounds.play(session.sounds.move, 1)
+}
+
+// toggleMenu opens or closes the options, with its sound.
+func (session *session) toggleMenu() {
+	session.menuOpen = !session.menuOpen
+	if session.menuOpen {
+		session.sounds.play(session.sounds.choose, 1)
+		return
+	}
+	session.sounds.play(session.sounds.back, 1)
+}
 
 // previewShip is the chosen ship's mesh and the scale that makes it previewRadius big, for the
 // ship screen to turn; no mesh for a ship the server hasn't described.
@@ -359,4 +375,26 @@ func (session *session) deathCaption() string {
 		return caption + "A to fly again"
 	}
 	return caption + "back in " + strconv.Itoa(int(math.Ceil(session.game.RespawnIn(session.now)))) + " s"
+}
+
+// hear plays the sounds of what happened this frame: hits, blasts and the force field.
+func (session *session) hear(events []game.Event) {
+	for _, event := range events {
+		switch event.Kind {
+		case game.ShipHit:
+			session.sounds.play(session.sounds.hit, 1)
+		case game.ShipDestroyed:
+			session.sounds.play(session.sounds.explosion, 1)
+		}
+	}
+	if hit := session.game.EdgeHitAt; hit != 0 && hit != session.edgeHeard {
+		session.edgeHeard = hit
+		session.sounds.play(session.sounds.shield, 1)
+	}
+}
+
+// applyVolumes gives the sound the settings' volumes.
+func (session *session) applyVolumes() {
+	settings := session.profile.Settings
+	session.sounds.setVolumes(float64(settings.Effects), float64(settings.Music))
 }
