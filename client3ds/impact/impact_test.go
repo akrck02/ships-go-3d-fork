@@ -26,3 +26,12 @@ func TestTheShakeDiesAway(t *testing.T) {
 		t.Fatalf("x %v at the start", x)
 	}
 }
+
+func TestTheWaveSpreadsFastThenSlows(t *testing.T) {
+	if WaveRadius(0) != 0 || WaveRadius(WaveSeconds) != WaveReach || WaveRadius(2*WaveSeconds) != WaveReach {
+		t.Fatal("wrong ends")
+	}
+	if first, second := WaveRadius(WaveSeconds/4), WaveRadius(WaveSeconds/2)-WaveRadius(WaveSeconds/4); first <= second {
+		t.Fatalf("the first quarter spread %v, the second %v: it should slow", first, second)
+	}
+}

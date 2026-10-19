@@ -10,6 +10,11 @@ const (
 	SparkSeconds = 0.7
 	ShakeSeconds = 0.45
 	GlowReach    = 260
+	// WaveSeconds is how long the force field's ring takes to spread to WaveReach.
+	WaveSeconds = 0.9
+	WaveReach   = 320
+	// FlashSeconds is how long the struck face of the force field stays lit.
+	FlashSeconds = 0.6
 	// ShakeReach is how far the camera moves at a crash's first moment, in world units.
 	ShakeReach = 0.9
 )
@@ -37,4 +42,11 @@ func Shake(seconds float64) (x, y float64) {
 	// Two frequencies that don't share a beat, so the wobble doesn't look like a circle.
 	const across, upAndDown = 47, 61
 	return strength * math.Sin(seconds*across), strength * math.Sin(seconds*upAndDown+1)
+}
+
+// WaveRadius is how far the force field's ring has spread seconds after a crash: fast at first,
+// slowing as it goes, as a ripple does.
+func WaveRadius(seconds float64) float64 {
+	share := math.Min(math.Max(seconds/WaveSeconds, 0), 1)
+	return WaveReach * (1 - (1-share)*(1-share))
 }

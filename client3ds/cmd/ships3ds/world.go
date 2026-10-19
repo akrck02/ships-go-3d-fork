@@ -55,6 +55,8 @@ type world struct {
 	edges                  [][2]flight.Vector // the edge's lines, for its glow
 	edgeEye                flight.Vector      // where the camera was when the edge's widths were worked out
 	crash                  *crash
+	shockwave              *shockwave
+	triangles              [][3]flight.Vector // the edge's faces, for the force field's flash
 	bursts                 *bursts
 	now                    float64     // seconds, this frame
 	title                  *scene.Node // the ship that crosses the title screen, or turns on the ship screen
@@ -69,6 +71,7 @@ func newWorld() *world {
 	world.sky = skyNode()
 	world.edge = &scene.Node{Name: "world edge", Transform: graphics.Identity(), Hidden: true}
 	world.crash = newCrash(space)
+	world.shockwave = newShockwave(space)
 	world.bursts = newBursts(space)
 	world.title = titleShip()
 	world.titleMesh = world.title.Mesh
@@ -121,6 +124,7 @@ func (world *world) show(state *game.Game, view *models.Camera, seconds, now flo
 	world.placeReticle(state)
 	world.placeSpace(state)
 	world.crash.show(state, world.edges, world.view.Eye, now, seconds)
+	world.shockwave.show(state, world.triangles, world.view.Eye, now)
 	for _, event := range state.TakeEvents() {
 		world.bursts.start(event)
 	}
@@ -135,6 +139,7 @@ func (world *world) placeSpace(state *game.Game) {
 	dustCellsAround(world.dust, state.Own.Position)
 	if world.edges == nil && state.Settings.WorldRadius > 0 {
 		world.edges = edgeLines(state.Settings.WorldRadius)
+		world.triangles = edgeTriangles(state.Settings.WorldRadius)
 		world.edge.Mesh = &scene.Mesh{Name: "world edge", Material: unlit()}
 		world.edge.Hidden, world.edgeEye = false, eye.Add(flight.Vector{edgeRebuildGap * 2})
 	}

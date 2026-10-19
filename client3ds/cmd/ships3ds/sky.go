@@ -112,6 +112,15 @@ func worldEdge(mesh *scene.Mesh, edges [][2]flight.Vector, eye flight.Vector) {
 	mesh.Dirty = true
 }
 
+// edgeTriangles are the world's edge's faces at its radius, for the force field's flash.
+func edgeTriangles(radius float64) [][3]flight.Vector {
+	triangles := icosphereTriangles(edgeSubdivisions)
+	for index, triangle := range triangles {
+		triangles[index] = [3]flight.Vector{triangle[0].Times(radius), triangle[1].Times(radius), triangle[2].Times(radius)}
+	}
+	return triangles
+}
+
 // edgeLines are the world's edge's lines at its radius.
 func edgeLines(radius float64) [][2]flight.Vector {
 	edges := icosphereEdges(edgeSubdivisions)
@@ -190,6 +199,35 @@ func appendLine(mesh *scene.Mesh, from, to flight.Vector, width float64, colour 
 // icosphereEdges are the edges of an icosahedron whose faces were each split into four, as many
 // times as subdivisions, on the unit sphere: each edge once.
 func icosphereEdges(subdivisions int) [][2]flight.Vector {
+	points, faces := icosphere(subdivisions)
+	seen := map[[2]int]bool{}
+	var edges [][2]flight.Vector
+	for _, face := range faces {
+		for corner := range 3 {
+			first, second := face[corner], face[(corner+1)%3]
+			key := [2]int{min(first, second), max(first, second)}
+			if !seen[key] {
+				seen[key] = true
+				edges = append(edges, [2]flight.Vector{points[first], points[second]})
+			}
+		}
+	}
+	return edges
+}
+
+// icosphereTriangles are the same icosahedron's faces, as their corners on the unit sphere.
+func icosphereTriangles(subdivisions int) [][3]flight.Vector {
+	points, faces := icosphere(subdivisions)
+	triangles := make([][3]flight.Vector, len(faces))
+	for index, face := range faces {
+		triangles[index] = [3]flight.Vector{points[face[0]], points[face[1]], points[face[2]]}
+	}
+	return triangles
+}
+
+// icosphere is an icosahedron on the unit sphere with its faces split subdivisions times: its
+// points and its faces as indices of three points.
+func icosphere(subdivisions int) ([]flight.Vector, [][3]int) {
 	golden := (1 + math.Sqrt(5)) / 2
 	points := []flight.Vector{
 		{-1, golden, 0}, {1, golden, 0}, {-1, -golden, 0}, {1, -golden, 0},
@@ -222,17 +260,5 @@ func icosphereEdges(subdivisions int) [][2]flight.Vector {
 		}
 		faces = split
 	}
-	seen := map[[2]int]bool{}
-	var edges [][2]flight.Vector
-	for _, face := range faces {
-		for corner := range 3 {
-			first, second := face[corner], face[(corner+1)%3]
-			key := [2]int{min(first, second), max(first, second)}
-			if !seen[key] {
-				seen[key] = true
-				edges = append(edges, [2]flight.Vector{points[first], points[second]})
-			}
-		}
-	}
-	return edges
+	return points, faces
 }

@@ -21,7 +21,7 @@ const (
 	glowWidthShare = 0.012
 	glowLeastWidth = 0.05
 	sparkCount     = 26
-	sparkSize      = 1.4
+	sparkSize      = 0.6
 	sparkSpeed     = 45 // world units a second, at most
 	sparkSeed      = 5
 )
