@@ -5,6 +5,10 @@ logs in, lists your ships and joins the same games as the browser, over the same
 HTTPS API. **Status: experiment**, written with an AI assistant and pending review. The plan is in
 [docs/proposals/1-nintendo-3ds-client.md](../docs/proposals/1-nintendo-3ds-client.md).
 
+| Title | Hangar | Game | At the edge |
+| --- | --- | --- | --- |
+| ![Title](docs/images/title.png) | ![Hangar](docs/images/hangar.png) | ![Game](docs/images/game.png) | ![At the edge](docs/images/edge.png) |
+
 ## Building
 
 ```bash
