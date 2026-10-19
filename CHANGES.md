@@ -1,5 +1,19 @@
 CHANGES
 =======
+Version 0.5.0 - 2026-10-19
+------------------
+Messages for players in Spanish and Basque (Euskara), as well as English.
+
+- Error messages from the API (login, registration, saving a ship...) are in
+  the language of the request's Accept-Language header, which ships-vue-3d
+  sets to the language picked on the site. Anything other than `es` or `eu`
+  gets English, as before.
+- The game websocket takes the language as a `lang` query parameter
+  (`/ws?lang=eu`), since browsers can't set headers there. It applies to the
+  game's error messages and to the default name for guests.
+- CORS allows the Accept-Language header.
+- The texture and image link errors from 0.4.0 are translated too.
+
 Version 0.4.0 - 2026-10-19
 ------------------
 Ship parts can have a texture: `texture` on a part is one of `panels`,

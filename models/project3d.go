@@ -1,8 +1,6 @@
 package models
 
 import (
-	"errors"
-	"fmt"
 	"math"
 	"net/url"
 	"regexp"
@@ -11,6 +9,8 @@ import (
 	"unicode/utf8"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
+
+	"ships3d/i18n"
 )
 
 // A ship is designed in the 3D editor as layers of primitives. Every
@@ -110,70 +110,70 @@ var colorPattern = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 func (p *Project3d) Validate() error {
 	p.Name = strings.TrimSpace(p.Name)
 	if p.Name == "" {
-		return errors.New("the project needs a name")
+		return i18n.New("projectNeedsName")
 	}
 	if utf8.RuneCountInString(p.Name) > MaxProjectNameLength {
-		return fmt.Errorf("the project name can't be longer than %d characters", MaxProjectNameLength)
+		return i18n.New("projectNameTooLong", MaxProjectNameLength)
 	}
 	if len(p.Layers) == 0 {
-		return errors.New("the project needs at least one layer")
+		return i18n.New("projectNeedsLayer")
 	}
 	if len(p.Layers) > MaxLayers {
-		return fmt.Errorf("a project can't have more than %d layers", MaxLayers)
+		return i18n.New("tooManyLayers", MaxLayers)
 	}
 	parts := 0
 	for i := range p.Layers {
 		layer := &p.Layers[i]
 		layer.Name = strings.TrimSpace(layer.Name)
 		if utf8.RuneCountInString(layer.Name) > MaxLayerNameLength {
-			return fmt.Errorf("layer names can't be longer than %d characters", MaxLayerNameLength)
+			return i18n.New("layerNameTooLong", MaxLayerNameLength)
 		}
 		if layer.Parts == nil {
 			layer.Parts = []Part{}
 		}
 		for j := range layer.Parts {
 			if err := layer.Parts[j].validate(); err != nil {
-				return fmt.Errorf("layer %q, part %d: %w", layer.Name, j+1, err)
+				return i18n.New("layerPart", layer.Name, j+1, err)
 			}
 		}
 		parts += len(layer.Parts)
 	}
 	if parts > MaxParts {
-		return fmt.Errorf("a project can't have more than %d parts", MaxParts)
+		return i18n.New("tooManyParts", MaxParts)
 	}
 	return nil
 }
 
 func (part *Part) validate() error {
 	if !partTypes[part.Type] {
-		return fmt.Errorf("unknown part type %q", part.Type)
+		return i18n.New("unknownPartType", part.Type)
 	}
 	if !colorPattern.MatchString(part.Color) {
-		return fmt.Errorf("invalid color %q", part.Color)
+		return i18n.New("invalidColor", part.Color)
 	}
 	if part.Texture != "" && !partTextures[part.Texture] {
-		return fmt.Errorf("unknown texture %q", part.Texture)
+		return i18n.New("unknownTexture", part.Texture)
 	}
 	if part.TextureURL != "" {
 		if part.Texture != "" {
-			return errors.New("a part can have a texture or an image, not both")
+			return i18n.New("textureAndImage")
 		}
 		if !validTextureURL(part.TextureURL) {
-			return fmt.Errorf("image links must start with https:// and be at most %d characters", MaxTextureURLLength)
+			return i18n.New("imageLinkRule", MaxTextureURLLength)
 		}
 	}
 	for axis := 0; axis < 3; axis++ {
 		if !isFinite(part.Position[axis]) || math.Abs(part.Position[axis]) > MaxCoordinate {
-			return fmt.Errorf("position must be between -%g and %g", MaxCoordinate, MaxCoordinate)
+			return i18n.New("positionRange", MaxCoordinate, MaxCoordinate)
 		}
 		if !isFinite(part.Rotation[axis]) {
-			return errors.New("invalid rotation")
+			return i18n.New("invalidRotation")
 		}
 		// Normalised so stored angles stay small however long an editor
 		// session spun the part around.
 		part.Rotation[axis] = math.Remainder(part.Rotation[axis], 2*math.Pi)
 		if !isFinite(part.Scale[axis]) || part.Scale[axis] < MinScale || part.Scale[axis] > MaxScale {
-			return fmt.Errorf("scale must be between %g and %g", MinScale, MaxScale)
+			return i18n.New("scaleRange", MinScale, MaxScale)
 		}
 	}
 	return nil

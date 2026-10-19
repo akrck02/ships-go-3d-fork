@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	dataaccess "ships3d/dataAccess"
+	"ships3d/i18n"
 	"ships3d/models"
 )
 
@@ -45,24 +46,24 @@ type registerBody struct {
 func (s *Server) register(c *gin.Context) {
 	var body registerBody
 	if err := c.ShouldBindJSON(&body); err != nil {
-		errorResponse(c, http.StatusBadRequest, "invalid request body")
+		errorResponse(c, http.StatusBadRequest, i18n.New("invalidBody"))
 		return
 	}
 	body.Username = strings.TrimSpace(body.Username)
 	body.Email = strings.TrimSpace(body.Email)
 
-	var problems []string
+	var problems []i18n.Message
 	if !usernamePattern.MatchString(body.Username) {
-		problems = append(problems, "the username must be 3 to 20 letters, digits, '_', '.' or '-'")
+		problems = append(problems, i18n.New("usernameRule"))
 	}
 	if address, err := mail.ParseAddress(body.Email); err != nil || address.Address != body.Email {
-		problems = append(problems, "the email address is not valid")
+		problems = append(problems, i18n.New("emailInvalid"))
 	}
-	if msg := passwordProblem(body.Password); msg != "" {
-		problems = append(problems, msg)
+	if problem, bad := passwordProblem(body.Password); bad {
+		problems = append(problems, problem)
 	}
 	if body.Password != body.Cpassword {
-		problems = append(problems, "the passwords don't match")
+		problems = append(problems, i18n.New("passwordsDontMatch"))
 	}
 	if len(problems) > 0 {
 		errorResponse(c, http.StatusBadRequest, problems...)
@@ -71,24 +72,24 @@ func (s *Server) register(c *gin.Context) {
 
 	if _, err := s.store.CreateUser(body.Username, body.Email, body.Password); err != nil {
 		if errors.Is(err, dataaccess.ErrUserExists) {
-			errorResponse(c, http.StatusConflict, err.Error())
+			errorResponse(c, http.StatusConflict, i18n.New("userExists"))
 			return
 		}
 		log.Println("register:", err)
-		errorResponse(c, http.StatusInternalServerError, "could not create the user")
+		errorResponse(c, http.StatusInternalServerError, i18n.New("createUserFailed"))
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
-func passwordProblem(password string) string {
+func passwordProblem(password string) (i18n.Message, bool) {
 	if len(password) < minPasswordLength {
-		return "the password must have at least 8 characters"
+		return i18n.New("passwordTooShort", minPasswordLength), true
 	}
 	if len(password) > maxPasswordLength {
-		return "the password can't be longer than 72 bytes"
+		return i18n.New("passwordTooLong", maxPasswordLength), true
 	}
-	return ""
+	return i18n.Message{}, false
 }
 
 type loginBody struct {
@@ -100,17 +101,17 @@ type loginBody struct {
 func (s *Server) login(c *gin.Context) {
 	var body loginBody
 	if err := c.ShouldBindJSON(&body); err != nil || body.Email == "" || body.Password == "" {
-		errorResponse(c, http.StatusBadRequest, "email and password are required")
+		errorResponse(c, http.StatusBadRequest, i18n.New("credentialsRequired"))
 		return
 	}
 	user, err := s.store.Authenticate(strings.TrimSpace(body.Email), body.Password)
 	if errors.Is(err, dataaccess.ErrInvalidCredentials) {
-		errorResponse(c, http.StatusUnauthorized, err.Error())
+		errorResponse(c, http.StatusUnauthorized, i18n.New("invalidCredentials"))
 		return
 	}
 	if err != nil {
 		log.Println("login:", err)
-		errorResponse(c, http.StatusInternalServerError, "could not log in")
+		errorResponse(c, http.StatusInternalServerError, i18n.New("loginFailed"))
 		return
 	}
 
@@ -128,7 +129,7 @@ func (s *Server) login(c *gin.Context) {
 	}
 	if err := s.store.InsertSession(session); err != nil {
 		log.Println("login: session:", err)
-		errorResponse(c, http.StatusInternalServerError, "could not log in")
+		errorResponse(c, http.StatusInternalServerError, i18n.New("loginFailed"))
 		return
 	}
 	s.setTokenCookie(c, session)
@@ -165,22 +166,22 @@ type changePasswordBody struct {
 func (s *Server) changePassword(c *gin.Context) {
 	var body changePasswordBody
 	if err := c.ShouldBindJSON(&body); err != nil {
-		errorResponse(c, http.StatusBadRequest, "invalid request body")
+		errorResponse(c, http.StatusBadRequest, i18n.New("invalidBody"))
 		return
 	}
-	if msg := passwordProblem(body.NewPassword); msg != "" {
-		errorResponse(c, http.StatusBadRequest, msg)
+	if problem, bad := passwordProblem(body.NewPassword); bad {
+		errorResponse(c, http.StatusBadRequest, problem)
 		return
 	}
 	user, session := contextUser(c), contextSession(c)
 	err := s.store.ChangePassword(user.Id, body.CurrentPassword, body.NewPassword)
 	if errors.Is(err, dataaccess.ErrInvalidCredentials) {
-		errorResponse(c, http.StatusBadRequest, "the current password is not correct")
+		errorResponse(c, http.StatusBadRequest, i18n.New("currentPasswordWrong"))
 		return
 	}
 	if err != nil {
 		log.Println("changePassword:", err)
-		errorResponse(c, http.StatusInternalServerError, "could not change the password")
+		errorResponse(c, http.StatusInternalServerError, i18n.New("changePasswordFailed"))
 		return
 	}
 	if err := s.store.LogoutUserSessions(user.IdAsString(), session.Id); err != nil {

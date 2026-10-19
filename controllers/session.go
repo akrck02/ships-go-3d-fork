@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"ships3d/i18n"
 	"ships3d/models"
 )
 
@@ -94,7 +95,7 @@ func (s *Server) currentUser(c *gin.Context) (*models.User, *models.Session) {
 func (s *Server) requireUser(c *gin.Context) {
 	user, session := s.currentUser(c)
 	if user == nil {
-		errorResponse(c, http.StatusUnauthorized, "you need to log in")
+		errorResponse(c, http.StatusUnauthorized, i18n.New("needLogin"))
 		return
 	}
 	c.Set(ctxUser, user)

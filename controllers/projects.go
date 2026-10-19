@@ -10,6 +10,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 
 	dataaccess "ships3d/dataAccess"
+	"ships3d/i18n"
 	"ships3d/models"
 )
 
@@ -26,7 +27,7 @@ func (s *Server) listProjects(c *gin.Context) {
 	projects, err := s.store.GetProjectsByUserId(contextUser(c).IdAsString())
 	if err != nil {
 		log.Println("listProjects:", err)
-		errorResponse(c, http.StatusInternalServerError, "could not load the projects")
+		errorResponse(c, http.StatusInternalServerError, i18n.New("loadProjectsFailed"))
 		return
 	}
 	c.JSON(http.StatusOK, projects)
@@ -55,7 +56,7 @@ func (s *Server) createProject(c *gin.Context) {
 	project.DateModified = now
 	if err := s.store.InsertProject(project); err != nil {
 		log.Println("createProject:", err)
-		errorResponse(c, http.StatusInternalServerError, "could not save the project")
+		errorResponse(c, http.StatusInternalServerError, i18n.New("saveProjectFailed"))
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "project": project})
@@ -99,7 +100,7 @@ func (s *Server) deleteProject(c *gin.Context) {
 func projectId(c *gin.Context) (bson.ObjectID, bool) {
 	id, err := bson.ObjectIDFromHex(c.Param("id"))
 	if err != nil {
-		errorResponse(c, http.StatusNotFound, "project not found")
+		errorResponse(c, http.StatusNotFound, i18n.New("projectNotFound"))
 		return id, false
 	}
 	return id, true
@@ -108,11 +109,15 @@ func projectId(c *gin.Context) (bson.ObjectID, bool) {
 func bindProject(c *gin.Context) (*models.Project3d, bool) {
 	var project models.Project3d
 	if err := c.ShouldBindJSON(&project); err != nil {
-		errorResponse(c, http.StatusBadRequest, "invalid project")
+		errorResponse(c, http.StatusBadRequest, i18n.New("invalidProject"))
 		return nil, false
 	}
 	if err := project.Validate(); err != nil {
-		errorResponse(c, http.StatusBadRequest, err.Error())
+		var message i18n.Message
+		if !errors.As(err, &message) {
+			message = i18n.New("invalidProject")
+		}
+		errorResponse(c, http.StatusBadRequest, message)
 		return nil, false
 	}
 	return &project, true
@@ -122,12 +127,12 @@ func bindProject(c *gin.Context) (*models.Project3d, bool) {
 // belongs to someone else is reported as not found, so ids can't be probed.
 func projectFound(c *gin.Context, err error) bool {
 	if errors.Is(err, dataaccess.ErrNotFound) {
-		errorResponse(c, http.StatusNotFound, "project not found")
+		errorResponse(c, http.StatusNotFound, i18n.New("projectNotFound"))
 		return false
 	}
 	if err != nil {
 		log.Println("project:", err)
-		errorResponse(c, http.StatusInternalServerError, "could not access the project")
+		errorResponse(c, http.StatusInternalServerError, i18n.New("accessProjectFailed"))
 		return false
 	}
 	return true
