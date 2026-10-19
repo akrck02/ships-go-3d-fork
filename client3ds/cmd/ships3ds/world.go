@@ -91,7 +91,7 @@ func (world *world) show(state *game.Game, view *models.Camera, seconds float64)
 	scale := state.Player.Scale
 	if world.ownShip != state.Player.Ship.Id {
 		world.ownShip = state.Player.Ship.Id
-		world.own.Mesh = world.shipMesh(state.Player.Ship.Id, state.Player.Ship.Layers, ship.Fine)
+		world.own.Mesh = world.shipMesh(state.Player.Ship.Id, state.Player.Ship.Layers, false)
 	}
 	world.own.Hidden = !state.Alive
 	world.own.Transform = transformOf(state.Own.Position, state.Own.Rotation, scale)
@@ -107,18 +107,31 @@ func (world *world) show(state *game.Game, view *models.Camera, seconds float64)
 	world.placeReticle(state)
 }
 
-// meshKey is a design at a level of detail.
+// meshKey is a design near or far.
 type meshKey struct {
-	id     string
-	detail ship.Detail
+	id  string
+	far bool
 }
 
-func (world *world) shipMesh(id string, layers []protocol.Layer, detail ship.Detail) *scene.Mesh {
-	key := meshKey{id, detail}
+// How many triangles a ship may have, near and far. A design may have hundreds of round parts:
+// at the fine detail one reached two hundred thousand triangles, more than the console's memory
+// holds, so each design gets the finest detail that fits.
+const (
+	nearTriangles = 12000
+	farTriangles  = 2500
+)
+
+// shipMesh is a design's mesh near or far, built the first time it is asked for.
+func (world *world) shipMesh(id string, layers []protocol.Layer, far bool) *scene.Mesh {
+	key := meshKey{id, far}
 	if mesh, found := world.ships[key]; found {
 		return mesh
 	}
-	mesh := ship.Build(layers, detail)
+	budget := nearTriangles
+	if far {
+		budget = farTriangles
+	}
+	mesh := ship.Build(layers, ship.Within(layers, budget))
 	world.ships[key] = mesh
 	return mesh
 }
@@ -153,17 +166,9 @@ func (world *world) showRemotes(state *game.Game) {
 		}
 		distance := player.Shown.Position.Subtract(state.Own.Position).Length()
 		node.Hidden = false
-		node.Mesh = world.shipMesh(player.Player.Ship.Id, player.Player.Ship.Layers, detailFor(distance))
+		node.Mesh = world.shipMesh(player.Player.Ship.Id, player.Player.Ship.Layers, distance > coarseDistance)
 		node.Transform = transformOf(player.Shown.Position, player.Shown.Rotation, player.Player.Scale)
 	}
-}
-
-// detailFor is the level of detail for a ship this far away.
-func detailFor(distance float64) ship.Detail {
-	if distance > coarseDistance {
-		return ship.Coarse
-	}
-	return ship.Fine
 }
 
 // reuseOrAddNode takes a hidden ship node no remote uses any more, or adds one: nodes are never

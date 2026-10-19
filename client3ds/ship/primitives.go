@@ -50,7 +50,13 @@ var (
 	// Coarse is for ships far away, where the screen shows a few pixels of them: about a fifth
 	// of the triangles.
 	Coarse = Detail{sphereWidth: 8, sphereHeight: 6, round: 8, lathe: 8, torusTube: 5, torusRing: 12, domeSteps: 3, capsuleSteps: 2}
+	// Minimal is for designs with hundreds of round parts, which even coarse would make too many
+	// triangles for the console's memory.
+	Minimal = Detail{sphereWidth: 5, sphereHeight: 4, round: 5, lathe: 5, torusTube: 3, torusRing: 6, domeSteps: 1, capsuleSteps: 1}
 )
+
+// Levels are the details from the finest to the plainest.
+var Levels = []Detail{Fine, Coarse, Minimal}
 
 // primitiveKey is a type at a detail.
 type primitiveKey struct {

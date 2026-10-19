@@ -17,6 +17,12 @@ var shipMaterial = &scene.Material{Name: "ship", Kind: scene.KindLit, BaseColor:
 // caller scales it to the game's ship size. Parts of a type it doesn't know are left out.
 func Build(layers []protocol.Layer, detail Detail) *scene.Mesh {
 	mesh := &scene.Mesh{Name: "ship", Material: shipMaterial}
+	// Made to measure: growing them by appending would hold up to twice the memory for a moment,
+	// which a design of hundreds of parts can't spare on the console.
+	vertices := 3 * Triangles(layers, detail)
+	mesh.Positions = make([]float32, 0, 3*vertices)
+	mesh.Normals = make([]float32, 0, 3*vertices)
+	mesh.Colors = make([]float32, 0, 4*vertices)
 	for _, layer := range layers {
 		if !layer.Visible {
 			continue
@@ -31,6 +37,35 @@ func Build(layers []protocol.Layer, detail Detail) *scene.Mesh {
 		}
 	}
 	return mesh
+}
+
+// Triangles is how many triangles Build makes of a design at a detail.
+func Triangles(layers []protocol.Layer, detail Detail) int {
+	count := 0
+	for _, layer := range layers {
+		if !layer.Visible {
+			continue
+		}
+		for _, part := range layer.Parts {
+			triangles := len(primitive(part.Type, detail))
+			if part.Mirror {
+				triangles *= 2
+			}
+			count += triangles
+		}
+	}
+	return count
+}
+
+// Within is the finest detail at which a design has at most maximum triangles, or the plainest
+// when even that has more.
+func Within(layers []protocol.Layer, maximum int) Detail {
+	for _, detail := range Levels {
+		if Triangles(layers, detail) <= maximum {
+			return detail
+		}
+	}
+	return Levels[len(Levels)-1]
 }
 
 // addPart places a primitive's triangles with the part's scale, then rotation, then position.

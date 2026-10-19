@@ -23,8 +23,9 @@ type Transport interface {
 }
 
 // MaximumMessageBytes bounds one message, so a broken server can't make the client take all its
-// memory. A welcome with every ship of a full game is well under it.
-const MaximumMessageBytes = 1 << 20
+// memory. The largest message is the welcome, which carries every player's ship: a design at the
+// server's limit of 400 parts is about 60 KB, so sixty such players fit.
+const MaximumMessageBytes = 8 << 20
 
 // acceptSalt is the fixed text RFC 6455 adds to the key to prove the server speaks websocket.
 const acceptSalt = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"

@@ -112,3 +112,32 @@ func TestTheCoarseDetailFillsTheSameCube(t *testing.T) {
 		}
 	}
 }
+
+// heavyDesign is 400 spheres, all mirrored: the most the server lets a design have.
+func heavyDesign() []protocol.Layer {
+	parts := make([]protocol.Part, 400)
+	for index := range parts {
+		parts[index] = protocol.Part{Type: partSphere, Scale: flight.Vector{1, 1, 1}, Color: "#ffffff", Mirror: true}
+	}
+	return []protocol.Layer{{Visible: true, Parts: parts}}
+}
+
+func TestTrianglesCountsWhatBuildMakes(t *testing.T) {
+	layers := heavyDesign()[:1]
+	layers[0].Parts = layers[0].Parts[:3]
+	if got, want := Triangles(layers, Coarse), Build(layers, Coarse).VertexCount()/3; got != want {
+		t.Fatalf("Triangles says %d, Build made %d", got, want)
+	}
+}
+
+func TestAHeavyDesignGetsAPlainerDetail(t *testing.T) {
+	small := []protocol.Layer{{Visible: true, Parts: []protocol.Part{boxPart(flight.Vector{}, false)}}}
+	if Within(small, 1000) != Fine {
+		t.Fatal("a small design didn't keep the fine detail")
+	}
+	heavy := heavyDesign()
+	detail := Within(heavy, 20000)
+	if detail == Fine || Triangles(heavy, detail) > 20000 && detail != Minimal {
+		t.Fatalf("got a detail of %d triangles", Triangles(heavy, detail))
+	}
+}
