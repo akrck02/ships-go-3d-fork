@@ -9,6 +9,7 @@ import (
 	"github.com/akrck02/go-renderer/models"
 	"github.com/akrck02/go-renderer/scene"
 
+	"ships3d/client3ds/chase"
 	"ships3d/client3ds/flight"
 	"ships3d/client3ds/game"
 	"ships3d/client3ds/protocol"
@@ -18,13 +19,10 @@ import (
 // The camera, in world units: a chase camera above and behind the ship, as the browser's, in ship
 // radii.
 const (
-	cameraNear        = 0.5
-	cameraFar         = 1200
-	cameraHeightShare = 1.3
-	cameraBackShare   = 3.6
-	cameraAheadShare  = 4
-	focalDistance     = 15
-	eyeSeparation     = 0.4 // with the 3D slider at its top
+	cameraNear    = 0.5
+	cameraFar     = 1200
+	focalDistance = 15
+	eyeSeparation = 0.4 // with the 3D slider at its top
 )
 
 // Dust: specks scattered through space, so flying straight still shows movement.
@@ -41,6 +39,7 @@ var (
 	dustColour        = [3]float32{0.7, 0.75, 0.85}
 	ownBulletColour   = [3]float32{1, 0.85, 0.3}
 	otherBulletColour = [3]float32{1, 0.35, 0.3}
+	reticleColour     = [3]float32{0.45, 0.85, 1}
 )
 
 // world is what the top screen shows.
@@ -50,6 +49,9 @@ type world struct {
 	ownShip                string
 	ships                  map[string]*scene.Mesh // built once per design
 	ownBullet, otherBullet *scene.Mesh
+	camera                 chase.Camera
+	wasAlive               bool
+	reticle                *scene.Node
 	remotes                map[string]*scene.Node
 	bullets                []*scene.Node
 }
@@ -64,7 +66,8 @@ func newWorld() *world {
 	space.Nodes = append(space.Nodes, &scene.Node{Name: "dust", Transform: graphics.Identity(), Mesh: dust()})
 	world := &world{scene: space, ships: map[string]*scene.Mesh{}, remotes: map[string]*scene.Node{}}
 	world.own = &scene.Node{Name: "own", Hidden: true}
-	space.Nodes = append(space.Nodes, world.own)
+	world.reticle = &scene.Node{Name: "reticle", Mesh: reticle(), Hidden: true}
+	space.Nodes = append(space.Nodes, world.own, world.reticle)
 	world.ownBullet = box("own bullet", bulletSize, bulletSize, bulletLength, ownBulletColour)
 	world.otherBullet = box("other bullet", bulletSize, bulletSize, bulletLength, otherBulletColour)
 	for range maximumShown {
@@ -76,7 +79,7 @@ func newWorld() *world {
 }
 
 // show places everything where the game says, and the camera behind our ship.
-func (world *world) show(state *game.Game, view *models.Camera) {
+func (world *world) show(state *game.Game, view *models.Camera, seconds float64) {
 	if !state.Welcomed {
 		view.Position, view.Target, view.Up = graphics.Vec4{0, 20, -60, 1}, graphics.Vec4{0, 0, 0, 1}, graphics.Vec4{0, 1, 0, 0}
 		return
@@ -90,7 +93,14 @@ func (world *world) show(state *game.Game, view *models.Camera) {
 	place(world.own, transformOf(state.Own.Position, state.Own.Rotation, scale))
 	world.showRemotes(state)
 	world.showBullets(state)
-	world.placeCamera(state, view)
+	world.placeReticle(state)
+	if state.Alive && !world.wasAlive {
+		world.camera.Reset() // back from a respawn, far from the wreck
+	}
+	world.wasAlive = state.Alive
+	if state.Alive {
+		world.placeCamera(state, view, seconds) // dead, the camera watches the wreck from where it was
+	}
 }
 
 func (world *world) shipMesh(id string, layers []protocol.Layer) *scene.Mesh {
@@ -166,15 +176,41 @@ func (world *world) showBullets(state *game.Game) {
 	}
 }
 
-func (world *world) placeCamera(state *game.Game, view *models.Camera) {
-	radius := state.Settings.ShipRadius
-	rotation := state.Own.Rotation
-	eye := state.Own.Position.Add(rotation.Apply(flight.Vector{0, radius * cameraHeightShare, -radius * cameraBackShare}))
-	target := state.Own.Position.Add(rotation.Apply(flight.Vector{0, 0, radius * cameraAheadShare}))
-	up := rotation.Apply(flight.Vector{0, 1, 0})
-	view.Position = graphics.Vec4{float32(eye[0]), float32(eye[1]), float32(eye[2]), 1}
-	view.Target = graphics.Vec4{float32(target[0]), float32(target[1]), float32(target[2]), 1}
-	view.Up = graphics.Vec4{float32(up[0]), float32(up[1]), float32(up[2]), 0}
+func (world *world) placeCamera(state *game.Game, view *models.Camera, seconds float64) {
+	chased := world.camera.Follow(state.Own, state.Settings.ShipRadius, seconds)
+	view.Position = vectorOf(chased.Eye, 1)
+	view.Target = vectorOf(chased.Target, 1)
+	view.Up = vectorOf(chased.Up, 0)
+}
+
+// reticleDistance is how far ahead of the ship the aim mark floats, in world units: where a
+// bullet is after a fifth of a second.
+const reticleDistance = 60
+
+// placeReticle floats the aim mark ahead of our nose, facing us.
+func (world *world) placeReticle(state *game.Game) {
+	world.reticle.Hidden = !state.Alive
+	ahead := state.Own.Position.Add(state.Own.Rotation.Apply(flight.Forward).Times(reticleDistance))
+	place(world.reticle, transformOf(ahead, state.Own.Rotation, 1))
+}
+
+// reticle is a cross with a gap in the middle, drawn in the plane facing the ship.
+func reticle() *scene.Mesh {
+	mesh := &scene.Mesh{Name: "reticle", Material: &scene.Material{Kind: scene.KindUnlit, BaseColor: graphics.Vec4{1, 1, 1, 1}}}
+	const arm, thickness, gap float32 = 2.5, 0.35, 1.2
+	offset := gap + arm/2
+	for _, centre := range [4][3]float32{{offset, 0, 0}, {-offset, 0, 0}, {0, offset, 0}, {0, -offset, 0}} {
+		width, height := arm, thickness
+		if centre[0] == 0 {
+			width, height = thickness, arm
+		}
+		appendBox(mesh, centre, width, height, thickness, reticleColour)
+	}
+	return mesh
+}
+
+func vectorOf(vector flight.Vector, w float32) graphics.Vec4 {
+	return graphics.Vec4{float32(vector[0]), float32(vector[1]), float32(vector[2]), w}
 }
 
 // ownCopy is a mesh of its own for one node, sharing the vertices. go-renderer's 3DS backend

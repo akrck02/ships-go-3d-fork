@@ -78,6 +78,11 @@ func (game *Game) CanRespawn(now float64) bool {
 	return game.Welcomed && !game.Alive && now-game.diedAt >= float64(game.Settings.RespawnDelayMs)/millisecondsPerSecond
 }
 
+// RespawnIn is how many seconds are left, at now, until we may fly again; 0 when we may.
+func (game *Game) RespawnIn(now float64) float64 {
+	return max(0, game.diedAt+float64(game.Settings.RespawnDelayMs)/millisecondsPerSecond-now)
+}
+
 // Handle applies one message from the server, at now seconds.
 func (game *Game) Handle(message protocol.Incoming, states []protocol.PlayerState, now float64) {
 	switch message.Type {

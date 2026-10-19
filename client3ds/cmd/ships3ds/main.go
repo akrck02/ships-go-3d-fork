@@ -74,7 +74,7 @@ func main() {
 			return false
 		}
 		session.exchange(frame, now)
-		world.show(session.game, &view)
+		world.show(session.game, &view, frame.Seconds)
 
 		ctr.BeginFrame()
 		separation := ctr.Slider3D() * eyeSeparation

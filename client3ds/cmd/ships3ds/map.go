@@ -100,7 +100,7 @@ func (session *session) paintMap(area draw2d.Rect, drawing *draw2d.List) {
 		strconv.Itoa(state.Player.Kills) + " kills, " + strconv.Itoa(state.Player.Deaths) + " deaths",
 	}
 	if !state.Alive {
-		lines = append(lines, "Destroyed: A to fly again")
+		lines = append(lines, session.respawnLine())
 	}
 	for index, line := range lines {
 		drawing.Text(line, area.X+labelMargin, area.Y+labelMargin+labelSize+float32(index)*labelLineSpacing, labelSize, draw2d.Regular, mapLabel)
@@ -140,6 +140,14 @@ func (session *session) paintSpeed(drawing *draw2d.List, area draw2d.Rect, speed
 	drawing.Rectangle(draw2d.Rect{X: x, Y: bottom - share*height, Width: speedBarWidth, Height: share * height}, speedBarWidth/2, mapOwn, mapTransparent, 0)
 	drawing.Rectangle(draw2d.Rect{X: x - 3, Y: stopped - ringWidth/2, Width: speedBarWidth + 6, Height: ringWidth}, 0, mapLabel, mapTransparent, 0)
 	drawing.Text(strconv.Itoa(int(speed)), x-labelSize-14, bottom-share*height+labelSize/2, labelSize, draw2d.Regular, mapLabel)
+}
+
+// respawnLine says how long until the player may fly again, then how.
+func (session *session) respawnLine() string {
+	if session.game.CanRespawn(session.now) {
+		return "Destroyed: A to fly again"
+	}
+	return "Destroyed: back in " + strconv.Itoa(int(math.Ceil(session.game.RespawnIn(session.now)))) + " s"
 }
 
 func abs(value float32) float32 {

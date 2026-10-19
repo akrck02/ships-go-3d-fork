@@ -109,3 +109,14 @@ func TestBeingHitIsRemembered(t *testing.T) {
 		t.Fatalf("hit at %v, life %v", game.HitAt, game.Player.Life)
 	}
 }
+
+func TestTheRespawnCountsDown(t *testing.T) {
+	game := welcomed(50)
+	game.Handle(protocol.Incoming{Type: protocol.TypeDied, Target: "me", From: "them"}, nil, 10)
+	if got := game.RespawnIn(11); got != 2 {
+		t.Fatalf("%v seconds left, want 2", got)
+	}
+	if got := game.RespawnIn(20); got != 0 {
+		t.Fatalf("%v seconds left after the delay, want 0", got)
+	}
+}
