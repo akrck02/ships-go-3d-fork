@@ -35,7 +35,7 @@ const (
 )
 
 // pixel is the windows' palette, "a blue moon": windows of night-blue glass with a pale blue
-// edge, the stars and the nebula showing through, starlight ink, and a sky blue (gold, the
+// edge, the stars and the nebula showing through, pale ink, and a sky blue (gold, the
 // accent) for what is chosen.
 var pixel = struct {
 	screen, window, tab, frame, shadow, ink, soft, gold, goldLight, chosen, glow, danger, good, star draw2d.Color
