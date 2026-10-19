@@ -153,6 +153,21 @@ var catalog = map[string]map[Lang]string{
 		Es: "la posición debe estar entre -%g y %g",
 		Eu: "posizioak -%g eta %g artean egon behar du",
 	},
+	"unknownTexture": {
+		En: "unknown texture %q",
+		Es: "textura desconocida %q",
+		Eu: "testura ezezaguna: %q",
+	},
+	"textureAndImage": {
+		En: "a part can have a texture or an image, not both",
+		Es: "una pieza puede tener una textura o una imagen, no las dos",
+		Eu: "pieza batek testura bat edo irudi bat izan dezake, ez biak",
+	},
+	"imageLinkRule": {
+		En: "image links must start with https:// and be at most %d characters",
+		Es: "los enlaces de imagen deben empezar por https:// y tener como máximo %d caracteres",
+		Eu: "irudi-estekek https:// honekin hasi behar dute eta gehienez %d karaktere izan",
+	},
 	"invalidRotation": {
 		En: "invalid rotation",
 		Es: "rotación no válida",
