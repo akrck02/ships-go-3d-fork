@@ -50,18 +50,35 @@ func TestValidateAcceptsEveryTexture(t *testing.T) {
 	}
 }
 
+func TestValidateAcceptsImageLink(t *testing.T) {
+	p := validProject()
+	p.Layers[0].Parts[0].TextureURL = "https://i.imgur.com/abc123.png?size=2"
+	if err := p.Validate(); err != nil {
+		t.Fatalf("image link rejected: %v", err)
+	}
+}
+
 func TestValidateRejects(t *testing.T) {
 	cases := map[string]func(p *Project3d){
-		"empty name":      func(p *Project3d) { p.Name = "   " },
-		"long name":       func(p *Project3d) { p.Name = strings.Repeat("x", MaxProjectNameLength+1) },
-		"no layers":       func(p *Project3d) { p.Layers = nil },
-		"unknown type":    func(p *Project3d) { p.Layers[0].Parts[0].Type = "teapot" },
-		"bad color":       func(p *Project3d) { p.Layers[0].Parts[0].Color = "red" },
-		"unknown texture": func(p *Project3d) { p.Layers[0].Parts[0].Texture = "marble" },
-		"far position":    func(p *Project3d) { p.Layers[0].Parts[0].Position[1] = MaxCoordinate + 1 },
-		"zero scale":      func(p *Project3d) { p.Layers[0].Parts[0].Scale[2] = 0 },
-		"NaN rotation":    func(p *Project3d) { p.Layers[0].Parts[0].Rotation[0] = math.NaN() },
-		"too many parts":  func(p *Project3d) { p.Layers[0].Parts = make([]Part, MaxParts+1) },
+		"empty name":        func(p *Project3d) { p.Name = "   " },
+		"long name":         func(p *Project3d) { p.Name = strings.Repeat("x", MaxProjectNameLength+1) },
+		"no layers":         func(p *Project3d) { p.Layers = nil },
+		"unknown type":      func(p *Project3d) { p.Layers[0].Parts[0].Type = "teapot" },
+		"bad color":         func(p *Project3d) { p.Layers[0].Parts[0].Color = "red" },
+		"unknown texture":   func(p *Project3d) { p.Layers[0].Parts[0].Texture = "marble" },
+		"http image link":   func(p *Project3d) { p.Layers[0].Parts[0].TextureURL = "http://a.com/a.png" },
+		"spaced image link": func(p *Project3d) { p.Layers[0].Parts[0].TextureURL = "https://a.com/a b" },
+		"long image link": func(p *Project3d) {
+			p.Layers[0].Parts[0].TextureURL = "https://a.com/" + strings.Repeat("a", MaxTextureURLLength)
+		},
+		"texture and image link": func(p *Project3d) {
+			p.Layers[0].Parts[0].Texture = "panels"
+			p.Layers[0].Parts[0].TextureURL = "https://a.com/a.png"
+		},
+		"far position":   func(p *Project3d) { p.Layers[0].Parts[0].Position[1] = MaxCoordinate + 1 },
+		"zero scale":     func(p *Project3d) { p.Layers[0].Parts[0].Scale[2] = 0 },
+		"NaN rotation":   func(p *Project3d) { p.Layers[0].Parts[0].Rotation[0] = math.NaN() },
+		"too many parts": func(p *Project3d) { p.Layers[0].Parts = make([]Part, MaxParts+1) },
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
