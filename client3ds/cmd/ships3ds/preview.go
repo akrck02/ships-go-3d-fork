@@ -28,7 +28,7 @@ var (
 		Position: graphics.Vec4{0, 7, -3, 1},
 		Target:   graphics.Vec4{0, 1, 22, 1},
 		Up:       graphics.Vec4{0, 1, 0, 0},
-		Near:     1, Far: 100,
+		Near:     1, Far: 400,
 	}
 )
 

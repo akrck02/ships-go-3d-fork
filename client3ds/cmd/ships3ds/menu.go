@@ -26,11 +26,10 @@ func (row menuRow) chooseable() bool { return row.activate != nil || row.adjust 
 
 // menuPage is a window of rows with a title; L and R go through the pages of a menu.
 type menuPage struct {
-	title      string
-	rows       []menuRow
-	valueLeft  float32 // where values start, in pixels; 0 is valueLeft
-	newestLast bool    // a log: it opens scrolled to its end
-	small      bool    // a window in the middle of the screen rather than over all of it
+	title     string
+	rows      []menuRow
+	valueLeft float32 // where values start, in pixels; 0 is valueLeft
+	small     bool    // a window in the middle of the screen rather than over all of it
 }
 
 // levelSteps is how many blocks a level's bar has; a volume of 0.7 shows seven.
@@ -71,12 +70,9 @@ func (shown *menu) prepare(pages []menuPage, now float64) {
 	}
 }
 
-// turnTo puts the cursor at the top of a page just turned to, or a log's end.
+// turnTo puts the cursor at the top of a page just turned to.
 func (shown *menu) turnTo(page menuPage) {
 	shown.cursor, shown.scroll = firstChoice(page), 0
-	if page.newestLast {
-		shown.scroll = max(len(page.rows)-visibleRows, 0)
-	}
 }
 
 // firstChoice is the index of the page's first chooseable row, or -1 when it has none.
@@ -206,7 +202,7 @@ func (session *session) touchMenu(pages []menuPage, input menuInput) {
 	page := pages[shown.page]
 	area := pageArea(page)
 	if input.touchY < area.Y+ribbonHeight {
-		for index, place := range tabPlaces(area, pages) {
+		for index, place := range tabPlaces(area, pages, shown.page) {
 			if input.turnsPages && index != shown.page && input.touchX >= place.X && input.touchX < place.X+place.Width {
 				session.turnPage(pages, index-shown.page)
 			}
@@ -264,7 +260,7 @@ func (session *session) paintPages(drawing *draw2d.List, pages []menuPage, hint 
 		return
 	}
 	window(drawing, area)
-	for index, place := range tabPlaces(area, pages) {
+	for index, place := range tabPlaces(area, pages, shown.page) {
 		tab(drawing, place, pages[index].title, index == shown.page)
 	}
 	for line := range min(visibleRows, len(page.rows)-shown.scroll) {
@@ -312,13 +308,13 @@ func paintRow(drawing *draw2d.List, area draw2d.Rect, page menuPage, row menuRow
 	pixelText(drawing, row.value, valueX, top, valueInk)
 }
 
-// tabPlaces are where the pages' tabs go along the window's top, one after another: the
-// figures' face is 8 pixels a letter, so no measuring is needed.
-func tabPlaces(area draw2d.Rect, pages []menuPage) []draw2d.Rect {
+// tabPlaces are where the pages' tabs go along the window's top, one after another, the open
+// one wider.
+func tabPlaces(area draw2d.Rect, pages []menuPage, open int) []draw2d.Rect {
 	places := make([]draw2d.Rect, len(pages))
 	x := area.X + 8
 	for index, page := range pages {
-		width := float32(len(page.title)*labelPixels + 2*tabPadding)
+		width := tabWidth(page.title, index == open)
 		places[index] = draw2d.Rect{X: x, Y: area.Y + tabsTop, Width: width, Height: tabHeight}
 		x += width + tabGap
 	}

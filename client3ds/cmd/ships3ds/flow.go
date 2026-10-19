@@ -45,6 +45,19 @@ func loadProfile() profile.Profile {
 // remember changes the profile and saves it on the SD card.
 func (session *session) remember(change func(remembered *profile.Profile)) {
 	change(&session.profile)
+	session.save()
+}
+
+// rememberLater changes the profile now and saves it once the menu closes: writing the SD card
+// takes long enough to stop the game for a moment, too long for every press of the cross.
+func (session *session) rememberLater(change func(remembered *profile.Profile)) {
+	change(&session.profile)
+	session.unsaved = true
+}
+
+// save writes the profile on the SD card.
+func (session *session) save() {
+	session.unsaved = false
 	folder, err := storage.Open(profileFolder)
 	if err == nil {
 		err = folder.Save(profileFile, session.profile.Bytes())
@@ -86,6 +99,9 @@ const (
 // betweenFrames does what was asked this frame and can't be done during one, and keeps the log.
 func (session *session) betweenFrames() {
 	session.keepLog()
+	if session.unsaved && !session.menuOpen {
+		session.save()
+	}
 	asked := session.asking
 	session.asking = askNothing
 	switch asked {
@@ -248,7 +264,7 @@ func (session *session) topHeading() (heading, caption string) {
 		if choice.own {
 			caption = "Your design"
 		}
-		return choice.name, caption
+		return choice.name, caption + "   " + strconv.Itoa(session.ship+1) + " / " + strconv.Itoa(len(session.ships))
 	}
 	return "", ""
 }

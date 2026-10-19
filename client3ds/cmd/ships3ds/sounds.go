@@ -32,6 +32,8 @@ type sounds struct {
 	laser, hit, explosion, shield *effect
 	move, choose, back            *effect
 	music                         *sound.Player
+	engine                        *sound.Player
+	engineSound                   *chiptune.Engine
 	effectsVolume, musicVolume    float64
 }
 
@@ -79,6 +81,12 @@ func newSounds() (*sounds, error) {
 		return all, err
 	}
 	all.music = music
+	all.engineSound = chiptune.NewEngine(1)
+	engine, err := context.NewPlayer(stream{all.engineSound})
+	if err != nil {
+		return all, err
+	}
+	all.engine = engine
 	return all, nil
 }
 
@@ -107,6 +115,27 @@ func (all *sounds) playMusic() {
 	if !all.music.IsPlaying() {
 		all.music.SetLoop(true) //nolint:errcheck // the music rewinds without fail
 		all.music.Play()
+	}
+}
+
+// engineLevel is the engine's share of the effects' volume: always there, under the shots.
+const engineLevel = 0.8
+
+// runEngine plays the engine at a throttle from 0 to 1 while flying, and stops it otherwise.
+func (all *sounds) runEngine(flying bool, throttle float64) {
+	if all.engine == nil {
+		return
+	}
+	if !flying || all.effectsVolume == 0 {
+		if all.engine.IsPlaying() {
+			all.engine.Pause()
+		}
+		return
+	}
+	all.engineSound.Throttle = throttle
+	all.engine.SetVolume(all.effectsVolume * engineLevel)
+	if !all.engine.IsPlaying() {
+		all.engine.Play()
 	}
 }
 

@@ -21,6 +21,8 @@ const (
 	tabHeight     = 18
 	tabPadding    = 6
 	tabGap        = 3
+	iconSize      = 12
+	iconGap       = 4
 	ribbonHeight  = tabsTop + tabHeight // where the tabs end
 	rowHeight     = 20
 	rowsTop       = ribbonHeight + 8
@@ -51,8 +53,8 @@ var nebula = []struct {
 	x, y, size float32
 	colour     draw2d.Color
 }{
-	{60, 40, 220, draw2d.Hex("#5b3fa833")}, {250, 150, 260, draw2d.Hex("#2f6fd033")},
-	{140, 210, 160, draw2d.Hex("#c0508a22")}, {300, 20, 120, draw2d.Hex("#4fc3f722")},
+	{60, 40, 220, draw2d.Hex("#5b3fa814")}, {250, 150, 260, draw2d.Hex("#2f6fd014")},
+	{140, 210, 160, draw2d.Hex("#c0508a10")}, {300, 20, 120, draw2d.Hex("#4fc3f710")},
 }
 
 const (
@@ -92,14 +94,38 @@ func window(drawing *draw2d.List, area draw2d.Rect) {
 	stepped(drawing, inset(area, frameWidth), cornerSteps, pixel.window)
 }
 
-// tab draws one page's tab with its name; the open one in the accent.
+// tab draws one page's tab: its icon, and its name too when it is open, in the accent.
 func tab(drawing *draw2d.List, area draw2d.Rect, name string, open bool) {
-	fill, ink := pixel.tab, pixel.soft
+	fill, ink, light := pixel.tab, pixel.soft, pixel.goldLight
 	if open {
-		fill, ink = pixel.gold, pixel.screen
+		fill, ink, light = pixel.gold, pixel.screen, pixel.frame
 	}
 	stepped(drawing, area, 1, fill)
-	drawing.Text(name, area.X+tabPadding, area.Y+area.Height-5, labelPixels, draw2d.Mono, ink)
+	x := area.X + tabPadding
+	if icon, found := pageIcons[name]; found {
+		bitmap(drawing, icon, x, area.Y+(area.Height-iconSize)/2, ink, light)
+		x += iconSize + iconGap
+	}
+	if open || pageIcons[name] == nil {
+		drawing.Text(name, x, area.Y+area.Height-5, labelPixels, draw2d.Mono, ink)
+	}
+}
+
+// tabWidth is how wide a page's tab is: an icon, and the name when open or when it has no icon.
+// The figures' face is 8 pixels a letter, so no measuring is needed.
+func tabWidth(name string, open bool) float32 {
+	width := float32(2 * tabPadding)
+	_, hasIcon := pageIcons[name]
+	if hasIcon {
+		width += iconSize
+	}
+	if open || !hasIcon {
+		width += float32(len(name) * labelPixels)
+		if hasIcon {
+			width += iconGap
+		}
+	}
+	return width
 }
 
 // The cursor's bobbing: how far, in pixels, and how fast, in turns a second.
@@ -163,7 +189,7 @@ const (
 func starfield(drawing *draw2d.List, now float64) {
 	drawing.Rectangle(fullScreen, 0, pixel.screen, draw2d.Color{}, 0)
 	for _, cloud := range nebula {
-		for ring := float32(1); ring >= 0.4; ring -= 0.3 {
+		for ring := float32(1); ring >= 0.2; ring -= 0.2 {
 			size := cloud.size * ring
 			drawing.Rectangle(draw2d.Rect{X: cloud.x - size/2, Y: cloud.y - size/2, Width: size, Height: size}, size/2, cloud.colour, draw2d.Color{}, 0)
 		}

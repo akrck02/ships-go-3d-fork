@@ -21,7 +21,6 @@ const (
 	settingsPage = "SETUP"
 	accountPage  = "ACCOUNT"
 	controlsPage = "CONTROLS"
-	logPage      = "LOG"
 )
 
 // figuresPageIndex is where the figures are in the game's menu, which reads the heap's size
@@ -65,9 +64,9 @@ func (session *session) pages() ([]menuPage, string) {
 		}
 		return []menuPage{page}, "A OK"
 	case session.screen == shipScreen:
-		return []menuPage{session.accountPage(), session.settingsPage(), controlsPageOf(), session.logPage()}, menuHint
+		return []menuPage{session.accountPage(), session.settingsPage(), controlsPageOf()}, menuHint
 	case session.menuOpen:
-		return []menuPage{session.pilotPage(), session.figuresPage(), session.settingsPage(), session.accountPage(), session.logPage()}, menuHint
+		return []menuPage{session.pilotPage(), session.figuresPage(), session.settingsPage(), session.accountPage()}, menuHint
 	}
 	return []menuPage{session.joiningPage()}, "B SHIPS"
 }
@@ -184,7 +183,7 @@ func (session *session) settingsPage() menuPage {
 		return func(step int) {
 			changed := session.profile.Settings
 			apply(&changed)
-			session.remember(func(remembered *profile.Profile) { remembered.Settings = changed })
+			session.rememberLater(func(remembered *profile.Profile) { remembered.Settings = changed })
 			session.applyVolumes()
 		}
 	}
@@ -247,71 +246,46 @@ func controlsPageOf() menuPage {
 	return menuPage{title: controlsPage, rows: rows, valueLeft: controlNameWidth + textLeft}
 }
 
-// logPage shows the log's lines, newest last; the whole log is on the SD card, log.txt.
-func (session *session) logPage() menuPage {
-	rows := []menuRow{}
-	for _, line := range session.log.lines {
-		for _, part := range wrapped(line, labelCharacters) {
-			rows = append(rows, menuRow{label: part, colour: pixel.soft})
-		}
-	}
-	return menuPage{title: logPage, rows: rows, newestLast: true}
-}
-
 // The title screen's prompt: it blinks, as arcade screens did, at blinksPerSecond.
 const (
 	blinksPerSecond = 1.5
-	promptY         = 150
+	promptY         = 124
 )
 
-// paintTitlePrompt draws the title screen's touch screen: a framed window and a blinking prompt;
-// the name is on the top screen.
+// paintTitlePrompt draws the title screen's touch screen clean: the night, its stars and a
+// blinking prompt; the name is on the top screen.
 func (session *session) paintTitlePrompt(area draw2d.Rect, drawing *draw2d.List) {
 	starfield(drawing, session.now)
-	window(drawing, inset(fullScreen, 8))
-	session.centredText(drawing, "SHIPS 3D", 80, labelPixels*3, draw2d.Bold, pixel.gold)
-	session.centredText(drawing, "a space dogfight", 104, pixelTextSize, draw2d.Regular, pixel.soft)
 	if math.Mod(session.now*blinksPerSecond, 1) < 0.65 {
 		session.centredText(drawing, "TOUCH OR PRESS A", promptY, labelPixels, draw2d.Mono, pixel.ink)
 	}
-	hints(drawing, inset(fullScreen, 8), "START QUIT")
 }
 
 // The ship screen's measures, in pixels.
 const (
-	shipNameY      = 34
-	shipArrowWidth = 8
-	shipArrowGap   = 14
-	shipNameWidest = ctr.BottomWidth - 2*(shipArrowGap+shipArrowWidth+10)
+	shipArrowY      = (ctr.BottomHeight - 2*shipArrowWidth) / 2
+	shipArrowWidth  = 8
+	shipNameWidest  = ctr.BottomWidth - 2*(shipArrowMargin+shipArrowWidth+8)
+	shipArrowMargin = 12
+	textShadowDrop  = 2
 )
 
-// paintShipChoice draws over the turning ship: its name between arrows that the cross turns,
-// which ship of how many, and the buttons' hints.
+// paintShipChoice draws over the hangar only the arrows the cross turns, at its sides, and a
+// problem, if any, at the bottom: the name and which ship of how many are on the top screen.
 func (session *session) paintShipChoice(area draw2d.Rect, drawing *draw2d.List) {
-	window(drawing, draw2d.Rect{X: 4, Y: 2, Width: ctr.BottomWidth - 8, Height: shipRowHeight})
-	label := shipLabel(session.ships[session.ship])
-	size := float32(bigSize)
-	width := session.textWidth(label, size, draw2d.Bold)
-	if width > shipNameWidest {
-		size = headingSize // a long name in the smaller size, so that the arrows stay on the screen
-		width = session.textWidth(label, size, draw2d.Bold)
-	}
-	left := (ctr.BottomWidth - width) / 2
-	drawing.Text(label, left, shipNameY, size, draw2d.Bold, pixel.ink)
-	arrow(drawing, left-shipArrowGap-shipArrowWidth, shipNameY-14, -1)
-	arrow(drawing, left+width+shipArrowGap, shipNameY-14, 1)
-	count := strconv.Itoa(session.ship+1) + " / " + strconv.Itoa(len(session.ships)) + "  " + fitted(session.playerName(), 20)
-	session.centredText(drawing, count, shipNameY+16, pixelTextSize, draw2d.Regular, pixel.soft)
-	bar := draw2d.Rect{X: 4, Y: ctr.BottomHeight - 2*hintsHeight - 4, Width: ctr.BottomWidth - 8, Height: 2 * hintsHeight}
-	window(drawing, bar)
+	arrow(drawing, shipArrowMargin, shipArrowY, -1)
+	arrow(drawing, ctr.BottomWidth-shipArrowMargin-shipArrowWidth, shipArrowY, 1)
 	if session.status != "" {
-		pixelText(drawing, fitted(session.status, labelCharacters), bar.X+10, bar.Y+2, pixel.danger)
+		session.shadowedText(drawing, fitted(session.status, labelCharacters), ctr.BottomHeight-10, pixelTextSize, draw2d.Regular, pixel.danger)
 	}
-	if math.Mod(session.now*blinksPerSecond, 1) < 0.65 {
-		hints(drawing, bar, "A FLY   START MENU")
-		return
-	}
-	hints(drawing, bar, "        START MENU")
+}
+
+// shadowedText draws a centred line with a hard shadow a pixel below and right, so that it reads
+// over the hangar's lights.
+func (session *session) shadowedText(drawing *draw2d.List, text string, y, size float32, weight draw2d.Weight, colour draw2d.Color) {
+	x := (ctr.BottomWidth - session.textWidth(text, size, weight)) / 2
+	drawing.Text(text, x+textShadowDrop, y+textShadowDrop, size, weight, pixel.shadow)
+	drawing.Text(text, x, y, size, weight, colour)
 }
 
 // arrow draws a pixel triangle pointing left (-1) or right (1), shipArrowWidth wide.
@@ -323,7 +297,8 @@ func arrow(drawing *draw2d.List, x, y float32, direction int) {
 		if direction < 0 {
 			left = x + shipArrowWidth - width
 		}
-		drawing.Rectangle(draw2d.Rect{X: left, Y: y + float32(row), Width: width, Height: 1}, 0, pixel.gold, draw2d.Color{}, 0)
+		drawing.Rectangle(draw2d.Rect{X: left + textShadowDrop, Y: y + float32(row) + textShadowDrop, Width: width, Height: 1}, 0, pixel.shadow, draw2d.Color{}, 0)
+		drawing.Rectangle(draw2d.Rect{X: left, Y: y + float32(row), Width: width, Height: 1}, 0, pixel.goldLight, draw2d.Color{}, 0)
 	}
 }
 
@@ -346,8 +321,4 @@ func shipLabel(choice shipChoice) string {
 		return "My " + label
 	}
 	return label
-}
-
-func lifeLine(life, maximum float64) string {
-	return "Life " + strconv.Itoa(int(life)) + " / " + strconv.Itoa(int(maximum))
 }

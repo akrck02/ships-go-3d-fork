@@ -1,6 +1,7 @@
 package game
 
 import (
+	"math"
 	"strings"
 	"testing"
 
@@ -152,5 +153,17 @@ func TestHitsAndDeathsAreEventsWhereTheShipIs(t *testing.T) {
 	}
 	if len(game.TakeEvents()) != 0 {
 		t.Fatal("events came back twice")
+	}
+}
+
+func TestTheEdgeIsFeltOnlyNearIt(t *testing.T) {
+	game := welcomed(5000)
+	for _, place := range []struct {
+		distance, want float64
+	}{{0, 0}, {1300, 0}, {1410, 0.5}, {1500, 1}} {
+		game.Own.Position = flight.Vector{0, 0, place.distance}
+		if got := game.EdgeNearness(); math.Abs(got-place.want) > 1e-9 {
+			t.Errorf("at %v: nearness %v, want %v", place.distance, got, place.want)
+		}
 	}
 }

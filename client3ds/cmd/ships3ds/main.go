@@ -11,6 +11,7 @@
 package main
 
 import (
+	"math"
 	"runtime"
 	"strconv"
 	"strings"
@@ -103,6 +104,7 @@ func main() {
 	session.applyVolumes()
 	world := newWorld()
 	start := time.Now()
+	var readings draw2d.List // the top screen's readings over the game (hud.go)
 	view := models.Camera{Far: cameraFar, Near: cameraNear, FieldOfView: chase.FieldOfView}
 	app.RunWithStart(func(frame app.Frame) bool {
 		frameStart := time.Now()
@@ -115,6 +117,9 @@ func main() {
 		networkTime := time.Since(frameStart)
 		events := session.game.TakeEvents()
 		session.hear(events)
+		state := session.game
+		flying := session.screen == gameScreen && state.Welcomed && state.Alive
+		session.sounds.runEngine(flying, math.Abs(state.Own.Speed)/math.Max(state.Settings.MaxSpeed, 1))
 		world.show(session.game, events, &view, frame.Seconds, now)
 		heading, caption := session.topHeading()
 		switch session.screen {
@@ -133,6 +138,10 @@ func main() {
 		} else {
 			separation := ctr.Slider3D() * eyeSeparation
 			renderer.PaintStereo(world.scene, view, separation, focalDistance)
+			if session.screen == gameScreen && session.game.Welcomed {
+				paintHUD(&readings, session.game, now)
+				title.paintOver(screen, &readings, separation > 0)
+			}
 		}
 		switch {
 		case session.showsRadar3D():
@@ -182,7 +191,8 @@ type session struct {
 	menu       menu   // where the cursor is in the touch screen's menus
 	measurer   draw2d.Measurer
 	quitting   bool
-	mapRange   int // index in radar.Ranges
+	unsaved    bool // settings changed in the menu, saved once it closes
+	mapRange   int  // index in radar.Ranges
 	scanner    *radar.Scanner
 	now        float64               // seconds, this frame
 	blips      map[string]radar.Blip // where the radar sees each ship this frame, reused
@@ -257,6 +267,9 @@ func (session *session) connect() {
 func (session *session) press(frame app.Frame) bool {
 	pressed := frame.Pressed
 	if session.quitting {
+		if session.unsaved {
+			session.save()
+		}
 		return false
 	}
 	input := menuInput{pressed: pressed, touchX: float32(frame.Reading.TouchX), touchY: float32(frame.Reading.TouchY)}

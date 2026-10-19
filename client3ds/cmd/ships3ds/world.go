@@ -56,6 +56,7 @@ type world struct {
 	edgeEye                flight.Vector      // where the camera was when the edge's widths were worked out
 	crash                  *crash
 	shockwave              *shockwave
+	forceField             *forceField
 	triangles              [][3]flight.Vector // the edge's faces, for the force field's flash
 	bursts                 *bursts
 	now                    float64     // seconds, this frame
@@ -72,6 +73,7 @@ func newWorld() *world {
 	world.edge = &scene.Node{Name: "world edge", Transform: graphics.Identity(), Hidden: true}
 	world.crash = newCrash(space)
 	world.shockwave = newShockwave(space)
+	world.forceField = newForceField(space)
 	world.bursts = newBursts(space)
 	world.title = titleShip()
 	world.titleMesh = world.title.Mesh
@@ -125,6 +127,7 @@ func (world *world) show(state *game.Game, events []game.Event, view *models.Cam
 	world.placeSpace(state)
 	world.crash.show(state, world.edges, world.view.Eye, now, seconds)
 	world.shockwave.show(state, world.triangles, world.view.Eye, now)
+	world.forceField.show(state, world.triangles)
 	for _, event := range events {
 		world.bursts.start(event)
 	}
@@ -257,6 +260,8 @@ func (world *world) showBullets(state *game.Game) {
 
 func (world *world) placeCamera(state *game.Game, view *models.Camera, seconds float64) {
 	chased := world.camera.Follow(state.Own, state.Settings.ShipRadius, seconds)
+	// Near the edge the camera draws back, as if something were wrong.
+	chased.Eye = chased.Target.Add(chased.Eye.Subtract(chased.Target).Times(1 + cameraPullBack*state.EdgeNearness()))
 	if state.EdgeHitAt > 0 || state.HitAt > 0 {
 		// A crash, or a bullet in our ship, shakes the camera across and up and down, as the
 		// ship sees them; a bullet less.

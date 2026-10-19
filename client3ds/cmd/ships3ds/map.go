@@ -106,8 +106,7 @@ func (session *session) paintReadings(area draw2d.Rect, drawing *draw2d.List) {
 		drawing.Rectangle(area, 0, mapTransparent, flash, hitFlashWidth)
 	}
 
-	lines := []string{
-		lifeLine(state.Player.Life, state.Settings.MaxLife),
+	lines := []string{ // life is on the top screen (hud.go)
 		strconv.Itoa(state.Player.Kills) + " kills, " + strconv.Itoa(state.Player.Deaths) + " deaths",
 	}
 	if !state.Alive {

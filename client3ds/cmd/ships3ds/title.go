@@ -110,3 +110,16 @@ func (title *topTitle) paint(screen *ctr.Screen, heading, caption string) {
 	title.context.End()
 	title.renderer.PaintOver(screen, title.context.Drawing())
 }
+
+// paintOver paints a draw list of the program's own over the top screen, on both eyes' pictures
+// when the frame is in 3D, so that it shows at the screen's depth.
+func (title *topTitle) paintOver(screen *ctr.Screen, drawing *draw2d.List, stereo bool) {
+	if !stereo {
+		title.renderer.PaintOver(screen, drawing)
+		return
+	}
+	for _, eye := range []ctr.Eye{ctr.LeftEye, ctr.RightEye} {
+		screen.DrawOn(eye)
+		title.renderer.PaintOver(screen, drawing)
+	}
+}

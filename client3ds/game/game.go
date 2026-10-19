@@ -227,6 +227,21 @@ func (game *Game) Step(controls flight.Controls, firing, respawning bool, second
 // holds the ship exactly on it.
 const edgeShare = 0.9995
 
+// edgeWarningShare is how much of the world's radius, in from its edge, the edge is felt over:
+// the force field shows, the camera draws back and the copilot warns.
+const edgeWarningShare = 0.12
+
+// EdgeNearness is how near our ship is to the world's edge: 0 farther in than the warning band,
+// rising to 1 on the edge itself.
+func (game *Game) EdgeNearness() float64 {
+	radius := game.Settings.WorldRadius
+	if radius <= 0 {
+		return 0
+	}
+	band := radius * edgeWarningShare
+	return min(max((game.Own.Position.Length()-(radius-band))/band, 0), 1)
+}
+
 // watchEdge notes when the ship touches the world's edge, and when it runs into it anew.
 func (game *Game) watchEdge(now float64) {
 	touching := game.Settings.WorldRadius > 0 && game.Own.Position.Length() >= game.Settings.WorldRadius*edgeShare
