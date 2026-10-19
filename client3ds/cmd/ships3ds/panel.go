@@ -15,7 +15,7 @@ import (
 const boldWeight = draw2d.Bold
 
 // shipNameWidth is the room the chosen ship's name has between its arrows, in pixels.
-const shipNameWidth = 96
+const shipNameWidth = 120
 
 // titleSize is the title screen's heading, in pixels.
 const titleSize = 40
@@ -95,27 +95,56 @@ func (session *session) buildServer(context *ui.Context) {
 		context.Text(session.server, ui.TextStyle{})
 		context.Spacer()
 		if context.IconButton("keyboard", "Change") {
-			session.typing = true
+			session.asking = askServer
+		}
+	})
+	context.Row(func() {
+		if session.account.Token == "" {
+			context.Text("Guest", ui.TextStyle{})
+			context.Spacer()
+			if context.IconButton("log-in", "Log in") {
+				session.asking = askLogin
+			}
+			return
+		}
+		context.Text(session.account.Username, ui.TextStyle{Weight: boldWeight})
+		context.Spacer()
+		if context.IconButton("log-out", "Log out") {
+			session.logOut()
 		}
 	})
 	// Arrows rather than a drop-down list: eight ships don't fit below it on the touch screen.
 	context.Row(func() {
-		context.Text("Ship", ui.TextStyle{})
-		context.Spacer()
+		count := len(session.ships)
 		if context.IconButton("chevron-left", "") {
-			session.ship = (session.ship + len(guestShips) - 1) % len(guestShips)
+			session.ship = (session.ship + count - 1) % count
 		}
 		context.Box(ui.Layout{Width: ui.Fixed(shipNameWidth), AlignX: ui.Center}, func() {
-			context.Text(guestShips[session.ship].name, ui.TextStyle{Weight: boldWeight})
+			context.Text(shipLabel(session.ships[session.ship]), ui.TextStyle{Weight: boldWeight})
 		})
 		if context.IconButton("chevron-right", "") {
-			session.ship = (session.ship + 1) % len(guestShips)
+			session.ship = (session.ship + 1) % count
+		}
+		context.Spacer()
+		if context.IconButton("plug", "Connect") {
+			session.connect()
 		}
 	})
-	if context.IconButton("plug", "Connect") {
-		session.connect()
+}
+
+// shipNameCharacters is how much of a ship's name fits between its arrows.
+const shipNameCharacters = 11
+
+// shipLabel is a ship's name shortened to fit, with "My" before the player's own designs.
+func shipLabel(choice shipChoice) string {
+	label := []rune(choice.name)
+	if len(label) > shipNameCharacters {
+		label = append(label[:shipNameCharacters-1], '…')
 	}
-	context.Caption("START quits")
+	if choice.own {
+		return "My " + string(label)
+	}
+	return string(label)
 }
 
 // buildMenu is the options, opened with START during a game.

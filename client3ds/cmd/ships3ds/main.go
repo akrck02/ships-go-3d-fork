@@ -15,6 +15,8 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"runtime"
 	"strconv"
 	"strings"
@@ -27,6 +29,7 @@ import (
 	"github.com/akrck02/go-renderer/ctr"
 	"github.com/akrck02/go-renderer/models"
 
+	"ships3d/client3ds/account"
 	"ships3d/client3ds/figures"
 	"ships3d/client3ds/flight"
 	"ships3d/client3ds/game"
@@ -84,9 +87,7 @@ func main() {
 		panel.Paint(frame.Input, session.build)
 		session.measure(frame, renderer, time.Since(frameStart), networkTime, now)
 		ctr.EndFrame()
-		if session.typing {
-			session.typeServer()
-		}
+		session.askWithKeyboard()
 		return true
 	})
 	session.close()
@@ -108,8 +109,11 @@ type session struct {
 	client     *websocket.Client
 	joined     bool
 	server     string // host:port, typed on the system keyboard
-	typing     bool   // the player asked for the keyboard; it opens after this frame
-	status     string // what the touch screen says about the connection
+	asking     asking // what the keyboard is to be opened for, after this frame
+	account    account.Session
+	email      string       // the last one typed, offered again
+	ships      []shipChoice // what the Ship arrows go through
+	status     string       // what the touch screen says about the connection
 	screen     screen
 	menuOpen   bool   // the options, over the map
 	tab        string // the chosen tab of the server screen or the options
@@ -121,7 +125,7 @@ type session struct {
 	blips      map[string]radar.Blip // where the radar sees each ship this frame, reused
 	figures    figures.Counter
 	reader     protocol.Reader
-	ship       int // index in guestShips
+	ship       int // index in ships
 	options    options
 	tilt       tilt.Tilt
 	gyroscope  app.Gyroscope // this frame's, for the Figures tab
@@ -129,29 +133,130 @@ type session struct {
 	memoryAt   float64       // when it was read, in seconds
 }
 
-// maximumServerLength fits a name or an address and its port.
-const maximumServerLength = 64
-
 func newSession() *session {
-	return &session{game: game.New(), server: host + ":" + port, status: "Choose the server and touch Connect", mapRange: radar.DefaultRange, scanner: radar.NewScanner(), options: defaultOptions, blips: map[string]radar.Blip{}}
+	return &session{game: game.New(), server: host + ":" + port, status: "Choose the server and touch Connect", mapRange: radar.DefaultRange,
+		scanner: radar.NewScanner(), options: defaultOptions, blips: map[string]radar.Blip{}, ships: guestShips}
 }
 
-// typeServer opens the system keyboard for the server's address. It runs between frames: the
-// keyboard takes both screens until the player is done.
-func (session *session) typeServer() {
-	session.typing = false
-	session.server, _ = keyboard.Ask(keyboard.Numbers, "Server address:port", session.server, maximumServerLength)
+// asking is what the system keyboard is to be opened for.
+type asking int
+
+const (
+	askNothing asking = iota
+	askServer         // the server's address
+	askLogin          // an email and a password
+)
+
+// Most characters the keyboard takes for each answer.
+const (
+	maximumServerLength   = 64 // a name or an address and its port
+	maximumEmailLength    = 100
+	maximumPasswordLength = 64
+)
+
+// askWithKeyboard opens the system keyboard if the player asked for it this frame. It runs
+// between frames: the keyboard takes both screens until the player is done.
+func (session *session) askWithKeyboard() {
+	asked := session.asking
+	session.asking = askNothing
+	switch asked {
+	case askServer:
+		session.server, _ = keyboard.Ask(keyboard.Numbers, "Server address:port", session.server, maximumServerLength)
+	case askLogin:
+		session.logIn()
+	}
 }
 
-// connect opens the connection and starts the websocket handshake.
-func (session *session) connect() {
+// serverAddress splits what was typed into the address and the port, which is 3000 when left out.
+func (session *session) serverAddress() (address string, portNumber int, err error) {
 	address, portText, found := strings.Cut(session.server, ":")
 	if !found {
 		portText = port
 	}
-	portNumber, err := strconv.Atoi(portText)
+	portNumber, err = strconv.Atoi(portText)
 	if err != nil {
-		session.status = "The port " + portText + " is not a number"
+		return "", 0, fmt.Errorf("the port %q is not a number", portText)
+	}
+	return address, portNumber, nil
+}
+
+// api is the server's HTTP side, for logging in and the list of ships.
+func (session *session) api() (account.Server, error) {
+	address, portNumber, err := session.serverAddress()
+	if err != nil {
+		return account.Server{}, err
+	}
+	dial := func() (account.Connection, error) { return network.Dial(address, portNumber) }
+	return account.Server{Dial: dial, Host: address + ":" + strconv.Itoa(portNumber)}, nil
+}
+
+// logIn asks for an email and a password, logs in, and offers the player's own ships too.
+func (session *session) logIn() {
+	email, confirmed := keyboard.Ask(keyboard.Text, "Email", session.email, maximumEmailLength)
+	if !confirmed {
+		return
+	}
+	session.email = email
+	password, confirmed := keyboard.Ask(keyboard.Password, "Password", "", maximumPasswordLength)
+	if !confirmed {
+		return
+	}
+	server, err := session.api()
+	if err != nil {
+		session.status = err.Error()
+		return
+	}
+	logged, err := server.LogIn(email, password)
+	if errors.Is(err, account.ErrRefused) {
+		session.status = "Wrong email or password"
+		return
+	}
+	if err != nil {
+		session.status = "Couldn't log in: " + err.Error()
+		return
+	}
+	session.account = logged
+	session.status = "Logged in as " + logged.Username
+	ships, err := server.Ships(logged)
+	if err != nil {
+		session.status = "Logged in, but the ships didn't load: " + err.Error()
+		return
+	}
+	session.offer(ships)
+}
+
+// offer makes the Ship arrows go through the built-in ships, then the player's own.
+func (session *session) offer(ships account.Ships) {
+	session.ships = session.ships[:0:0]
+	for _, ship := range ships.Defaults {
+		session.ships = append(session.ships, shipChoice{id: ship.Id, name: ship.Name})
+	}
+	for _, ship := range ships.Own {
+		session.ships = append(session.ships, shipChoice{id: ship.Id, name: ship.Name, own: true})
+	}
+	if len(session.ships) == 0 {
+		session.ships = guestShips
+	}
+	session.ship = 0
+}
+
+// logOut ends the session on the server and goes back to the built-in ships.
+func (session *session) logOut() {
+	if server, err := session.api(); err == nil {
+		// Leaving anyway: a session the server keeps a little longer does no harm.
+		_ = server.LogOut(session.account)
+	}
+	session.account = account.Session{}
+	session.ships, session.ship = guestShips, 0
+	session.status = "Logged out"
+}
+
+// connect opens the connection and starts the websocket handshake, with the session's cookie
+// when logged in.
+func (session *session) connect() {
+	address, portNumber, err := session.serverAddress()
+	if err != nil {
+		session.status = err.Error()
 		return
 	}
 	session.connection, err = network.Dial(address, portNumber)
@@ -159,12 +264,17 @@ func (session *session) connect() {
 		session.status = err.Error()
 		return
 	}
-	session.client, err = websocket.Connect(session.connection, address+":"+portText, websocketPath, nil)
+	var header map[string]string
+	if session.account.Token != "" {
+		header = map[string]string{"Cookie": session.account.Cookie()}
+	}
+	hostPort := address + ":" + strconv.Itoa(portNumber)
+	session.client, err = websocket.Connect(session.connection, hostPort, websocketPath, header)
 	if err != nil {
 		session.status = err.Error()
 		return
 	}
-	session.status = "Connecting to " + address + ":" + portText + "…"
+	session.status = "Connecting to " + hostPort + "…"
 	session.screen = gameScreen
 }
 
@@ -228,7 +338,7 @@ func (session *session) exchange(frame app.Frame, now float64) {
 	if !session.joined {
 		session.joined = true
 		session.status = "Joining…"
-		session.send(protocol.Join(guestShips[session.ship].id, name))
+		session.send(protocol.Join(session.ships[session.ship].id, session.playerName()))
 	}
 	if session.game.Welcomed {
 		session.status = "Playing on " + session.server
@@ -312,17 +422,33 @@ func (session *session) measure(frame app.Frame, renderer *ctr.SceneRenderer, pr
 	})
 }
 
+// shipChoice is a ship the player may fly: its id for the server, its name, and whether it is
+// one of the player's own designs.
+type shipChoice struct {
+	id, name string
+	own      bool
+}
+
+// playerName is the logged-in player's name, or the guest's.
+func (session *session) playerName() string {
+	if session.account.Username != "" {
+		return session.account.Username
+	}
+	return name
+}
+
 // guestShips are the built-in ships a guest may fly, as the server names them
-// (game/defaultShips.go): change both together.
-var guestShips = []struct{ id, name string }{
-	{"default:arrow", "Arrow"},
-	{"default:hammer", "Hammer"},
-	{"default:saucer", "Saucer"},
-	{"default:kestrel", "Kestrel"},
-	{"default:mule", "Mule"},
-	{"default:lancer", "Lancer"},
-	{"default:bulwark", "Bulwark"},
-	{"default:wisp", "Wisp"},
+// (game/defaultShips.go): change both together. Logging in replaces them with the server's own
+// list.
+var guestShips = []shipChoice{
+	{id: "default:arrow", name: "Arrow"},
+	{id: "default:hammer", name: "Hammer"},
+	{id: "default:saucer", name: "Saucer"},
+	{id: "default:kestrel", name: "Kestrel"},
+	{id: "default:mule", name: "Mule"},
+	{id: "default:lancer", name: "Lancer"},
+	{id: "default:bulwark", name: "Bulwark"},
+	{id: "default:wisp", name: "Wisp"},
 }
 
 // options are the player's choices in the Settings tab.
