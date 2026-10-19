@@ -60,7 +60,7 @@ func (session *session) paintMap(area draw2d.Rect, drawing *draw2d.List) {
 	circle := func(x, y, size float32, fill, border draw2d.Color, borderWidth float32) {
 		drawing.Rectangle(draw2d.Rect{X: x - size/2, Y: y - size/2, Width: size, Height: size}, mapCircleRadius, fill, border, borderWidth)
 	}
-	if !session.options.flatRadar {
+	if !session.profile.Settings.FlatRadar {
 		session.paintReadings(area, drawing) // the 3D radar is drawn under, by the radar scene
 		return
 	}
@@ -116,7 +116,10 @@ func (session *session) paintReadings(area draw2d.Rect, drawing *draw2d.List) {
 	for index, line := range lines {
 		drawing.Text(line, area.X+labelMargin, area.Y+labelMargin+labelSize+float32(index)*labelLineSpacing, labelSize, draw2d.Regular, mapLabel)
 	}
-	rangeText := strconv.Itoa(int(distance)) + " units  (up/down)"
+	// The zoom rather than the distance to the edge: the game's distances have no unit a player
+	// knows. The widest range is ×1.
+	zoom := radar.Ranges[len(radar.Ranges)-1] / distance
+	rangeText := "Zoom x" + strconv.Itoa(int(zoom)) + "  (up/down)"
 	drawing.Text(rangeText, area.X+labelMargin, area.Y+area.Height-labelMargin, labelSize, draw2d.Regular, mapLabel)
 	drawing.Text("START: options", area.X+area.Width-112, area.Y+area.Height-labelMargin, labelSize, draw2d.Regular, mapLabel)
 }

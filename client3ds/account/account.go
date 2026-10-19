@@ -107,6 +107,30 @@ func (server Server) Ships(session Session) (Ships, error) {
 	return ships, nil
 }
 
+// Who asks the server whose session this is: the username, and false when the server no longer
+// knows the session (it expired, or the player logged out elsewhere).
+func (server Server) Who(session Session) (string, bool, error) {
+	response, err := server.do(web.Request{Method: methodGet, Path: "/userInfo", Header: map[string]string{"Cookie": session.Cookie()}})
+	if err != nil {
+		return "", false, err
+	}
+	if response.Status != statusOK {
+		return "", false, fmt.Errorf("%w: status %d", ErrServer, response.Status)
+	}
+	var answer struct {
+		User *struct {
+			Username string `json:"username"`
+		} `json:"user"`
+	}
+	if err := json.Unmarshal(response.Body, &answer); err != nil {
+		return "", false, fmt.Errorf("%w: %w", ErrServer, err)
+	}
+	if answer.User == nil {
+		return "", false, nil
+	}
+	return answer.User.Username, true, nil
+}
+
 // LogOut ends the session on the server.
 func (server Server) LogOut(session Session) error {
 	response, err := server.do(web.Request{Method: methodPost, Path: "/logout", Header: map[string]string{"Cookie": session.Cookie()}})

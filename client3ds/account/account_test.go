@@ -44,6 +44,13 @@ func fakeServer() *httptest.Server {
 		}
 		writer.Write([]byte(`{"defaults":[{"id":"default:arrow","name":"Arrow","layers":[]}],"own":` + own + `}`)) //nolint:errcheck // as above
 	})
+	mux.HandleFunc("GET /userInfo", func(writer http.ResponseWriter, request *http.Request) {
+		if cookie, err := request.Cookie("token"); err == nil && cookie.Value == "abc" {
+			writer.Write([]byte(`{"user":{"username":"pilot"}}`)) //nolint:errcheck // the test fails on its own
+			return
+		}
+		writer.Write([]byte(`{"user":null}`)) //nolint:errcheck // as above
+	})
 	mux.HandleFunc("POST /logout", func(writer http.ResponseWriter, _ *http.Request) {
 		writer.Write([]byte(`{"success":true}`)) //nolint:errcheck // as above
 	})
@@ -122,5 +129,17 @@ func TestAddressesAreUnderstood(t *testing.T) {
 		if _, err := ParseAddress(typed); !errors.Is(err, ErrAddress) {
 			t.Errorf("%q: got %v, want %v", typed, err, ErrAddress)
 		}
+	}
+}
+
+func TestARememberedSessionIsCheckedWithTheServer(t *testing.T) {
+	test := fakeServer()
+	defer test.Close()
+	server := serverFor(t, test)
+	if name, valid, err := server.Who(Session{Token: "abc"}); err != nil || !valid || name != "pilot" {
+		t.Fatalf("got %q %v %v", name, valid, err)
+	}
+	if _, valid, err := server.Who(Session{Token: "expired"}); err != nil || valid {
+		t.Fatalf("an unknown session came back valid (%v)", err)
 	}
 }

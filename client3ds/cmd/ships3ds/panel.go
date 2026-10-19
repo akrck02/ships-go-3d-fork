@@ -9,26 +9,32 @@ import (
 	"github.com/akrck02/go-renderer/ctr"
 	"github.com/akrck02/go-renderer/draw2d"
 	ui "github.com/akrck02/go-ui"
+
+	"ships3d/client3ds/profile"
 )
 
 // boldWeight is the heavy text of titles and names.
 const boldWeight = draw2d.Bold
 
-// shipNameWidth is the room the chosen ship's name has between its arrows, in pixels.
-const shipNameWidth = 120
-
-// promptSize is the title screen's invitation to start, on the touch screen, in pixels.
-const promptSize = 24
+// Sizes on the touch screen, in pixels.
+const (
+	promptSize   = 24 // the title's invitation to start
+	shipNameSize = 24 // the chosen ship's name between its arrows
+)
 
 // build lays out the touch screen for what it shows now.
 func (session *session) build(context *ui.Context) {
 	switch {
+	case session.confirming != noChange:
+		session.buildPanel(context, session.buildRestartWarning)
 	case session.screen == titleScreen:
 		session.buildTitle(context)
-	case session.screen == serverScreen:
-		session.buildPanel(context, session.buildServerChoice)
+	case session.screen == enteringScreen:
+		session.buildPanel(context, session.buildEntering)
 	case session.menuOpen:
 		session.buildPanel(context, session.buildMenu)
+	case session.screen == shipScreen:
+		session.buildShipChoice(context)
 	case session.game.Welcomed:
 		session.buildMap(context)
 	default:
@@ -40,7 +46,9 @@ func (session *session) build(context *ui.Context) {
 func (session *session) buildPanel(context *ui.Context, content func(context *ui.Context)) {
 	options := ui.PanelOptions{Dock: ui.DockLeft, Width: ui.Fixed(ctr.BottomWidth), Height: ui.Grow()}
 	context.PanelWith("Ships 3D", options, func() {
-		context.Caption(session.status)
+		if session.status != "" {
+			context.Caption(session.status)
+		}
 		if session.game.Problem != "" {
 			context.Caption("Server: " + session.game.Problem)
 		}
@@ -48,89 +56,77 @@ func (session *session) buildPanel(context *ui.Context, content func(context *ui
 	})
 }
 
+// centred is a box filling the touch screen with its content in the middle.
+func centred(context *ui.Context, content func()) {
+	layout := ui.Layout{Direction: ui.Vertical, Width: ui.Fixed(ctr.BottomWidth), Height: ui.Fixed(ctr.BottomHeight), AlignX: ui.Center, AlignY: ui.Center, Gap: 12}
+	context.Box(layout, content)
+}
+
 // buildTitle is the first screen's touch screen: how to go on; the name is on the top screen.
 func (session *session) buildTitle(context *ui.Context) {
-	layout := ui.Layout{Direction: ui.Vertical, Width: ui.Fixed(ctr.BottomWidth), Height: ui.Fixed(ctr.BottomHeight), AlignX: ui.Center, AlignY: ui.Center, Gap: 12}
-	context.Box(layout, func() {
+	centred(context, func() {
 		context.Text("Touch the screen", ui.TextStyle{Size: promptSize, Weight: boldWeight})
 		context.Caption("or press A to start")
 	})
 }
 
-// The tabs of the server screen and of the options, by name: both share the controls and the
-// settings.
-const (
-	serverTab   = "Server"
-	gameTab     = "Game"
-	controlsTab = "Controls"
-	figuresTab  = "Figures"
-	settingsTab = "Settings"
-)
-
-var (
-	serverTabs = []string{serverTab, settingsTab, controlsTab}
-	menuTabs   = []string{gameTab, figuresTab, settingsTab, controlsTab}
-)
-
-// buildTabs shows tabs and the chosen one's content.
-func (session *session) buildTabs(context *ui.Context, name string, labels []string, content map[string]func()) {
-	selected := min(session.tabIndex, len(labels)-1)
-	context.Tabs(name, &selected, labels...)
-	session.tabIndex, session.tab = selected, labels[selected]
-	content[session.tab]()
-}
-
-// buildServerChoice shows the server to connect to, the ship, and Connect; the settings and the
-// controls in their own tabs.
-func (session *session) buildServerChoice(context *ui.Context) {
-	session.buildTabs(context, "server tabs", serverTabs, map[string]func(){
-		serverTab:   func() { session.buildServer(context) },
-		settingsTab: func() { session.buildSettings(context) },
-		controlsTab: func() { buildControls(context) },
-	})
-}
-
-func (session *session) buildServer(context *ui.Context) {
+// buildEntering says the server is being reached, or why it couldn't be, with a way out.
+func (session *session) buildEntering(context *ui.Context) {
+	if session.asking == askEnter {
+		return // the status says what is happening
+	}
 	context.Row(func() {
-		context.Text(session.server, ui.TextStyle{})
-		context.Spacer()
-		if context.IconButton("keyboard", "Change") {
-			session.asking = askServer
+		if context.IconButton("refresh-cw", "Retry") {
+			session.enter()
+		}
+		if context.IconButton("settings", "Server and account") {
+			session.menuOpen, session.screen = true, shipScreen
+			session.tab, session.tabIndex = accountTab, 0
 		}
 	})
-	context.Row(func() {
-		if session.account.Token == "" {
-			context.Text("Guest", ui.TextStyle{})
-			context.Spacer()
-			if context.IconButton("log-in", "Log in") {
-				session.asking = askLogin
+}
+
+// buildShipChoice is the ship screen's touch screen: the ship's name between arrows, and Fly.
+func (session *session) buildShipChoice(context *ui.Context) {
+	centred(context, func() {
+		if session.status != "" {
+			context.Caption(session.status)
+		}
+		context.Row(func() {
+			if context.IconButton("chevron-left", "") {
+				session.previousShip()
 			}
-			return
-		}
-		context.Text(session.account.Username, ui.TextStyle{Weight: boldWeight})
-		context.Spacer()
-		if context.IconButton("log-out", "Log out") {
-			session.logOut()
-		}
-	})
-	// Arrows rather than a drop-down list: eight ships don't fit below it on the touch screen.
-	context.Row(func() {
-		count := len(session.ships)
-		if context.IconButton("chevron-left", "") {
-			session.ship = (session.ship + count - 1) % count
-		}
-		context.Box(ui.Layout{Width: ui.Fixed(shipNameWidth), AlignX: ui.Center}, func() {
-			context.Text(shipLabel(session.ships[session.ship]), ui.TextStyle{Weight: boldWeight})
+			context.Box(ui.Layout{Width: ui.Fixed(shipNameWidth), AlignX: ui.Center}, func() {
+				context.Text(shipLabel(session.ships[session.ship]), ui.TextStyle{Size: shipNameSize, Weight: boldWeight})
+			})
+			if context.IconButton("chevron-right", "") {
+				session.nextShip()
+			}
 		})
-		if context.IconButton("chevron-right", "") {
-			session.ship = (session.ship + 1) % count
-		}
-		context.Spacer()
-		if context.IconButton("plug", "Connect") {
+		context.Caption(strconv.Itoa(session.ship+1) + " of " + strconv.Itoa(len(session.ships)) + "  ·  " + session.playerName())
+		if context.IconButton("rocket", "Fly") {
 			session.connect()
 		}
+		context.Caption("A flies  ·  START: options")
 	})
 }
+
+// buildRestartWarning asks before a change of server or account, which starts the game again.
+func (session *session) buildRestartWarning(context *ui.Context) {
+	context.Text("The game will restart", ui.TextStyle{Weight: boldWeight})
+	context.Caption("You will leave the game and connect again.")
+	context.Row(func() {
+		if context.IconButton("rotate-ccw", "Restart") {
+			session.confirm()
+		}
+		if context.IconButton("x", "Cancel") {
+			session.confirming = noChange
+		}
+	})
+}
+
+// shipNameWidth is the room the chosen ship's name has between its arrows, in pixels.
+const shipNameWidth = 170
 
 // shipNameCharacters is how much of a ship's name fits between its arrows.
 const shipNameCharacters = 11
@@ -147,12 +143,46 @@ func shipLabel(choice shipChoice) string {
 	return string(label)
 }
 
-// buildMenu is the options, opened with START during a game.
+// The tabs of the options, by name.
+const (
+	gameTab     = "Game"
+	figuresTab  = "Figures"
+	settingsTab = "Settings"
+	accountTab  = "Account"
+	controlsTab = "Controls"
+)
+
+// The options' tabs on the ship screen, and in the game.
+var (
+	shipMenuTabs = []string{accountTab, settingsTab, controlsTab}
+	gameMenuTabs = []string{gameTab, figuresTab, settingsTab, accountTab, controlsTab}
+)
+
+// buildTabs shows tabs and the chosen one's content; a tab asked for by name (session.tab) is
+// chosen when the list has it.
+func (session *session) buildTabs(context *ui.Context, name string, labels []string, content map[string]func()) {
+	selected := min(session.tabIndex, len(labels)-1)
+	for index, label := range labels {
+		if label == session.tab {
+			selected = index
+		}
+	}
+	context.Tabs(name, &selected, labels...)
+	session.tabIndex, session.tab = selected, labels[selected]
+	content[session.tab]()
+}
+
+// buildMenu is the options, opened with START on the ship screen or in the game.
 func (session *session) buildMenu(context *ui.Context) {
-	session.buildTabs(context, "menu tabs", menuTabs, map[string]func(){
+	labels := shipMenuTabs
+	if session.screen == gameScreen {
+		labels = gameMenuTabs
+	}
+	session.buildTabs(context, "menu tabs", labels, map[string]func(){
 		gameTab:     func() { session.buildGame(context) },
 		figuresTab:  func() { session.buildFigures(context) },
 		settingsTab: func() { session.buildSettings(context) },
+		accountTab:  func() { session.buildAccount(context) },
 		controlsTab: func() { buildControls(context) },
 	})
 }
@@ -168,8 +198,8 @@ func (session *session) buildGame(context *ui.Context) {
 		if context.IconButton("play", "Resume") {
 			session.menuOpen = false
 		}
-		if context.IconButton("log-out", "Leave") {
-			session.leave("Left the game")
+		if context.IconButton("log-out", "Ships") {
+			session.leave("")
 		}
 		if context.IconButton("power", "Quit") {
 			session.quitting = true
@@ -177,24 +207,61 @@ func (session *session) buildGame(context *ui.Context) {
 	})
 }
 
-// buildSettings offers how the circle pad flies.
-func (session *session) buildSettings(context *ui.Context) {
-	context.Toggle("Up raises the nose", &session.options.invertPitch)
-	threeDimensions := !session.options.flatRadar
-	if context.Toggle("3D radar", &threeDimensions) {
-		session.options.flatRadar = !threeDimensions
+// buildAccount shows the server and the account, each with its change, which restarts the game.
+func (session *session) buildAccount(context *ui.Context) {
+	context.Caption("Server")
+	context.Row(func() {
+		context.Text(session.profile.Server, ui.TextStyle{})
+		context.Spacer()
+		if context.IconButton("keyboard", "Change") {
+			session.ask(changeServer)
+		}
+	})
+	context.Caption("Account")
+	context.Row(func() {
+		if session.account.Token == "" {
+			context.Text("Guest", ui.TextStyle{})
+			context.Spacer()
+			if context.IconButton("log-in", "Log in") {
+				session.ask(changeLogin)
+			}
+			return
+		}
+		context.Text(session.account.Username, ui.TextStyle{Weight: boldWeight})
+		context.Spacer()
+		if context.IconButton("log-out", "Log out") {
+			session.ask(changeLogout)
+		}
+	})
+	if context.IconButton("chevron-left", "Back") {
+		session.menuOpen = false
 	}
-	if context.Toggle("Steer by tilting", &session.options.gyroscope) {
+}
+
+// buildSettings offers how the ship flies and the radar shows; each change is remembered.
+func (session *session) buildSettings(context *ui.Context) {
+	settings := session.profile.Settings
+	changed := context.Toggle("Up raises the nose", &settings.InvertPitch)
+	threeDimensions := !settings.FlatRadar
+	if context.Toggle("3D radar", &threeDimensions) {
+		settings.FlatRadar, changed = !threeDimensions, true
+	}
+	if context.Toggle("Steer by tilting", &settings.Gyroscope) {
 		session.tilt.Centre() // from where the console is held now
+		changed = true
 	}
 	context.Row(func() {
 		context.Text("Fine aim", ui.TextStyle{})
 		context.Spacer()
-		context.Text(strconv.Itoa(int(session.options.precision*100+0.5))+" %", ui.TextStyle{})
+		context.Text(strconv.Itoa(int(settings.Precision*100+0.5))+" %", ui.TextStyle{})
 	})
-	context.SliderStep("precision", &session.options.precision, 0, 1, 0.1)
-	context.Caption("Fine aim: the circle pad softer near its centre.")
-	context.Caption("L centres the tilt where you hold the console.")
+	if context.SliderStep("precision", &settings.Precision, 0, 1, 0.1) {
+		changed = true
+	}
+	context.Caption("Fine aim: the circle pad softer near its centre. L centres the tilt.")
+	if changed {
+		session.remember(func(remembered *profile.Profile) { remembered.Settings = settings })
+	}
 }
 
 // remoteLines are the other players' scores, best first.

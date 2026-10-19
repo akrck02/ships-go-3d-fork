@@ -11,13 +11,11 @@
 package main
 
 import (
-	"errors"
 	"runtime"
 	"time"
 
 	"github.com/akrck02/go-3ds/app"
 	"github.com/akrck02/go-3ds/bottom"
-	"github.com/akrck02/go-3ds/keyboard"
 	"github.com/akrck02/go-3ds/network"
 	"github.com/akrck02/go-renderer/ctr"
 	"github.com/akrck02/go-renderer/models"
@@ -27,6 +25,7 @@ import (
 	"ships3d/client3ds/figures"
 	"ships3d/client3ds/flight"
 	"ships3d/client3ds/game"
+	"ships3d/client3ds/profile"
 	"ships3d/client3ds/protocol"
 	"ships3d/client3ds/radar"
 	"ships3d/client3ds/tilt"
@@ -71,28 +70,33 @@ func main() {
 		return
 	}
 
-	session := newSession()
+	session := newSession(loadProfile())
 	world := newWorld()
 	start := time.Now()
 	view := models.Camera{Far: cameraFar, Near: cameraNear, FieldOfView: chase.FieldOfView}
 	app.RunWithStart(func(frame app.Frame) bool {
 		frameStart := time.Now()
 		now := frameStart.Sub(start).Seconds()
-		if !session.press(frame.Pressed) {
+		if !session.press(frame) {
 			return false
 		}
 		session.exchange(frame, now)
 		networkTime := time.Since(frameStart)
 		world.show(session.game, &view, frame.Seconds)
-		if session.screen == titleScreen {
+		heading, caption := session.topHeading()
+		switch session.screen {
+		case titleScreen, enteringScreen:
 			world.showTitle(now, &view)
+		case shipScreen:
+			mesh, scale := session.previewShip(world)
+			world.showPreview(mesh, scale, now, &view)
 		}
 
 		ctr.BeginFrame()
-		if session.screen == titleScreen {
-			// One picture rather than two eyes: the name painted over it would show double in 3D.
+		if heading != "" {
+			// One picture rather than two eyes: the words painted over it would show double in 3D.
 			renderer.PaintOn(screen, world.scene, view)
-			title.paint(screen)
+			title.paint(screen, heading, caption)
 		} else {
 			separation := ctr.Slider3D() * eyeSeparation
 			renderer.PaintStereo(world.scene, view, separation, focalDistance)
@@ -105,7 +109,7 @@ func main() {
 		}
 		session.measure(frame, renderer, time.Since(frameStart), networkTime, now)
 		ctr.EndFrame()
-		session.askWithKeyboard()
+		session.betweenFrames()
 		return true
 	})
 	session.close()
@@ -115,9 +119,10 @@ func main() {
 type screen int
 
 const (
-	titleScreen  screen = iota // "Ships 3D", touch to start
-	serverScreen               // the server's address and Connect
-	gameScreen                 // the map, while connected
+	titleScreen    screen = iota // "Ships 3D", touch to start
+	enteringScreen               // logging in to the server and fetching its ships, or why that failed
+	shipScreen                   // the ship to fly, turning on the top screen
+	gameScreen                   // the radar, while connected
 )
 
 // session is the game, its connection to the server and what the touch screen shows.
@@ -126,15 +131,17 @@ type session struct {
 	connection *network.Connection
 	client     *websocket.Client
 	joined     bool
-	server     string // host:port, typed on the system keyboard
-	asking     asking // what the keyboard is to be opened for, after this frame
+	profile    profile.Profile // what is remembered on the SD card
 	account    account.Session
-	email      string       // the last one typed, offered again
-	ships      []shipChoice // what the Ship arrows go through
+	ships      []shipChoice // what the ship screen's arrows go through
+	ship       int          // index in ships
 	status     string       // what the touch screen says about the connection
 	screen     screen
-	menuOpen   bool   // the options, over the map
-	tab        string // the chosen tab of the server screen or the options
+	asking     asking // what to do between frames: the keyboard, or a wait for the network
+	confirming change // a change of server or account waiting for "the game will restart"
+	circleSide int    // where the circle pad was last frame on the ship screen: -1, 0 or 1
+	menuOpen   bool   // the options, over the ship screen or the radar
+	tab        string // the chosen tab of the options
 	tabIndex   int
 	quitting   bool
 	mapRange   int // index in radar.Ranges
@@ -143,50 +150,16 @@ type session struct {
 	blips      map[string]radar.Blip // where the radar sees each ship this frame, reused
 	figures    figures.Counter
 	reader     protocol.Reader
-	ship       int // index in ships
-	options    options
 	tilt       tilt.Tilt
 	gyroscope  app.Gyroscope // this frame's, for the Figures tab
 	heapBytes  uint64        // the heap's size, read now and then
 	memoryAt   float64       // when it was read, in seconds
 }
 
-func newSession() *session {
-	return &session{game: game.New(), server: server, status: "Choose the server and touch Connect", mapRange: radar.DefaultRange,
-		scanner: radar.NewScanner(), options: defaultOptions, blips: map[string]radar.Blip{}, ships: guestShips}
-}
-
-// asking is what the system keyboard is to be opened for.
-type asking int
-
-const (
-	askNothing asking = iota
-	askServer         // the server's address
-	askLogin          // an email and a password
-)
-
-// Most characters the keyboard takes for each answer.
-const (
-	maximumServerLength   = 64 // a name or an address and its port
-	maximumEmailLength    = 100
-	maximumPasswordLength = 64
-)
-
-// askWithKeyboard opens the system keyboard if the player asked for it this frame. It runs
-// between frames: the keyboard takes both screens until the player is done.
-func (session *session) askWithKeyboard() {
-	asked := session.asking
-	session.asking = askNothing
-	switch asked {
-	case askServer:
-		server, confirmed := keyboard.Ask(keyboard.Text, "Server: address:port, or https://name:port", session.server, maximumServerLength)
-		if confirmed {
-			session.server = server
-			session.refreshShips()
-		}
-	case askLogin:
-		session.logIn()
-	}
+func newSession(remembered profile.Profile) *session {
+	return &session{game: game.New(), profile: remembered, mapRange: radar.DefaultRange,
+		scanner: radar.NewScanner(), blips: map[string]radar.Blip{}, ships: guestShips,
+		account: account.Session{Token: remembered.Token, Username: remembered.Username}}
 }
 
 // dial connects to the server, over TLS when it was typed with https://.
@@ -199,7 +172,7 @@ func dial(address account.Address) (*network.Connection, error) {
 
 // api is the server's HTTP side, for logging in and the list of ships.
 func (session *session) api() (account.Server, error) {
-	address, err := account.ParseAddress(session.server)
+	address, err := account.ParseAddress(session.profile.Server)
 	if err != nil {
 		return account.Server{}, err
 	}
@@ -207,106 +180,10 @@ func (session *session) api() (account.Server, error) {
 	return account.Server{Dial: connect, Host: address.HostPort()}, nil
 }
 
-// logIn asks for an email and a password, logs in, and offers the player's own ships too.
-func (session *session) logIn() {
-	email, confirmed := keyboard.Ask(keyboard.Text, "Email", session.email, maximumEmailLength)
-	if !confirmed {
-		return
-	}
-	session.email = email
-	password, confirmed := keyboard.Ask(keyboard.Password, "Password", "", maximumPasswordLength)
-	if !confirmed {
-		return
-	}
-	server, err := session.api()
-	if err != nil {
-		session.status = err.Error()
-		return
-	}
-	logged, err := server.LogIn(email, password)
-	if errors.Is(err, account.ErrRefused) {
-		session.status = "Wrong email or password"
-		return
-	}
-	if err != nil {
-		session.status = "Couldn't log in: " + err.Error()
-		return
-	}
-	session.account = logged
-	session.status = "Logged in as " + logged.Username
-	session.refreshShips()
-}
-
-// refreshShips asks the server which ships it has for this player, so the arrows offer only
-// those: a server running an older version has fewer built-in ships. It waits for the answer, a
-// few seconds at most; it runs after the keyboard, or when the player touches Connect.
-func (session *session) refreshShips() bool {
-	server, err := session.api()
-	if err != nil {
-		session.status = err.Error()
-		return false
-	}
-	ships, err := server.Ships(session.account)
-	if err != nil {
-		session.status = "The server's ships didn't load: " + err.Error()
-		return false
-	}
-	session.offer(ships)
-	return true
-}
-
-// offer makes the Ship arrows go through the built-in ships, then the player's own, keeping the
-// chosen one when the server has it.
-func (session *session) offer(ships account.Ships) {
-	chosen := session.ships[session.ship].id
-	session.ships = session.ships[:0:0]
-	for _, ship := range ships.Defaults {
-		session.ships = append(session.ships, shipChoice{id: ship.Id, name: ship.Name})
-	}
-	for _, ship := range ships.Own {
-		session.ships = append(session.ships, shipChoice{id: ship.Id, name: ship.Name, own: true})
-	}
-	if len(session.ships) == 0 {
-		session.ships = guestShips
-	}
-	session.ship = 0
-	for index, choice := range session.ships {
-		if choice.id == chosen {
-			session.ship = index
-		}
-	}
-}
-
-// offers tells whether the arrows' list holds a ship.
-func (session *session) offers(id string) bool {
-	for _, choice := range session.ships {
-		if choice.id == id {
-			return true
-		}
-	}
-	return false
-}
-
-// logOut ends the session on the server and goes back to the built-in ships.
-func (session *session) logOut() {
-	if server, err := session.api(); err == nil {
-		// Leaving anyway: a session the server keeps a little longer does no harm.
-		_ = server.LogOut(session.account)
-	}
-	session.account = account.Session{}
-	session.status = "Logged out"
-	session.refreshShips()
-}
-
-// connect opens the connection and starts the websocket handshake, with the session's cookie
-// when logged in.
+// connect opens the game's connection and starts the websocket handshake, with the session's
+// cookie when logged in.
 func (session *session) connect() {
-	chosen := session.ships[session.ship]
-	if session.refreshShips() && !session.offers(chosen.id) {
-		session.status = "This server has no " + chosen.name + ": choose another ship"
-		return
-	}
-	address, err := account.ParseAddress(session.server)
+	address, err := account.ParseAddress(session.profile.Server)
 	if err != nil {
 		session.status = err.Error()
 		return
@@ -328,21 +205,27 @@ func (session *session) connect() {
 	}
 	session.status = "Connecting to " + hostPort + "…"
 	session.screen = gameScreen
+	session.remember(func(remembered *profile.Profile) { remembered.Ship = session.ships[session.ship].id })
 }
 
 // press acts on the buttons pressed this frame that change screens, and tells whether to go on.
-func (session *session) press(pressed ctr.Buttons) bool {
+func (session *session) press(frame app.Frame) bool {
+	pressed := frame.Pressed
 	if session.quitting {
 		return false
 	}
 	switch session.screen {
 	case titleScreen:
 		if pressed&(ctr.ButtonTouch|ctr.ButtonA) != 0 {
-			session.screen = serverScreen
+			session.enter()
 		}
 		return pressed&ctr.ButtonStart == 0
-	case serverScreen:
-		return pressed&ctr.ButtonStart == 0
+	case enteringScreen:
+		return true
+	case shipScreen:
+		circleX, _ := frame.Reading.Circle()
+		session.pressOnShipScreen(pressed, circleX)
+		return true
 	}
 	if pressed&ctr.ButtonStart != 0 {
 		session.menuOpen = !session.menuOpen
@@ -356,13 +239,13 @@ func (session *session) press(pressed ctr.Buttons) bool {
 	return true
 }
 
-// leave closes the connection and goes back to the server's address.
+// leave closes the game's connection and goes back to choosing a ship.
 func (session *session) leave(status string) {
 	session.close()
 	session.client, session.connection = nil, nil
 	session.game, session.joined, session.menuOpen = game.New(), false, false
 	session.scanner = radar.NewScanner()
-	session.status, session.screen = status, serverScreen
+	session.status, session.screen = status, shipScreen
 }
 
 // exchange reads what the server sent, moves the game on with the controls and sends the result.
@@ -393,14 +276,14 @@ func (session *session) exchange(frame app.Frame, now float64) {
 		session.send(protocol.Join(session.ships[session.ship].id, session.playerName()))
 	}
 	if session.game.Welcomed {
-		session.status = "Playing on " + session.server
+		session.status = "Playing on " + session.profile.Server
 	}
 	tiltOf(&session.tilt, frame)
 	if frame.Pressed&ctr.ButtonL != 0 {
 		session.tilt.Centre()
 	}
 	firing := frame.Reading.Held&fireButtons != 0
-	controls := controlsOf(frame, session.options, session.tilt)
+	controls := controlsOf(frame, session.profile.Settings, session.tilt)
 	if session.menuOpen {
 		controls, firing = flight.Controls{}, false // the ship flies on straight while the options are open
 	}
@@ -474,11 +357,12 @@ func (session *session) measure(frame app.Frame, renderer *ctr.SceneRenderer, pr
 	})
 }
 
-// shipChoice is a ship the player may fly: its id for the server, its name, and whether it is
-// one of the player's own designs.
+// shipChoice is a ship the player may fly: its id for the server, its name, whether it is one of
+// the player's own designs, and its design, to show it turning.
 type shipChoice struct {
 	id, name string
 	own      bool
+	layers   []protocol.Layer
 }
 
 // playerName is the logged-in player's name, or the guest's.
@@ -497,21 +381,11 @@ var guestShips = []shipChoice{
 	{id: "default:saucer", name: "Saucer"},
 }
 
-// options are the player's choices in the Settings tab.
-type options struct {
-	invertPitch bool    // up on the circle pad raises the nose, instead of a plane's way
-	precision   float32 // 0 to 1: how much softer the circle pad is near its centre
-	gyroscope   bool    // tilting the console steers too
-	flatRadar   bool    // the touch screen's radar seen straight from above, as a map
-}
-
 // showsRadar3D tells whether the touch screen shows the 3D radar now: in the game, with the
 // options closed, unless the flat one was chosen.
 func (session *session) showsRadar3D() bool {
-	return session.screen == gameScreen && !session.menuOpen && session.game.Welcomed && !session.options.flatRadar
+	return session.screen == gameScreen && !session.menuOpen && session.game.Welcomed && !session.profile.Settings.FlatRadar
 }
-
-var defaultOptions = options{precision: 0.5}
 
 // memoryEverySeconds is how often the Figures tab reads the heap's size.
 const memoryEverySeconds = 1

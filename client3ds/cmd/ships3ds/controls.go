@@ -8,6 +8,7 @@ import (
 	ui "github.com/akrck02/go-ui"
 
 	"ships3d/client3ds/flight"
+	"ships3d/client3ds/profile"
 	"ships3d/client3ds/tilt"
 )
 
@@ -16,16 +17,16 @@ const fireButtons = ctr.ButtonR | ctr.ButtonA
 
 // controlsOf reads the sticks, the buttons and, when chosen, the console's tilt as the flight
 // model's controls. Roll is on the C-stick (New 3DS) and the cross's left and right; speed on the
-// C-stick's up and down, X and B. They add up, so any can be used at once.
-func controlsOf(frame app.Frame, choices options, tilted tilt.Tilt) flight.Controls {
+// C-stick's up and down, ZR and ZL (New 3DS), X and B. They add up, so any can be used at once.
+func controlsOf(frame app.Frame, choices profile.Settings, tilted tilt.Tilt) flight.Controls {
 	circleX, circleY := frame.Reading.Circle()
-	precision := float64(choices.precision)
+	precision := float64(choices.Precision)
 	pitch := -flight.Curve(circleY, precision)
-	if choices.invertPitch {
+	if choices.InvertPitch {
 		pitch = -pitch
 	}
 	controls := flight.Controls{Pitch: pitch, Yaw: flight.Curve(circleX, precision), Roll: frame.CStickX, Throttle: frame.CStickY}
-	if choices.gyroscope {
+	if choices.Gyroscope {
 		controls.Pitch += tilt.Axis(tilted.Pitch)
 		controls.Yaw += tilt.Axis(tilted.Steer)
 	}
@@ -36,10 +37,10 @@ func controlsOf(frame app.Frame, choices options, tilted tilt.Tilt) flight.Contr
 	if held&ctr.ButtonRight != 0 {
 		controls.Roll++
 	}
-	if held&ctr.ButtonX != 0 {
+	if held&(ctr.ButtonZR|ctr.ButtonX) != 0 {
 		controls.Throttle++
 	}
-	if held&ctr.ButtonB != 0 {
+	if held&(ctr.ButtonZL|ctr.ButtonB) != 0 {
 		controls.Throttle--
 	}
 	return controls
@@ -58,10 +59,11 @@ var controlLines = [][2]string{
 	{"R or A", "Fire; A flies again after dying"},
 	{"C-stick", "Roll, faster and slower"},
 	{"Left / Right", "Roll"},
-	{"X / B", "Faster / slower"},
+	{"ZR / ZL", "Faster / slower (also X / B)"},
 	{"Tilting", "Nose and turn, if on in Settings"},
 	{"L", "Centre the tilt"},
-	{"Up / Down", "Radar range"},
+	{"Left / Right", "Ship to fly, on the ship screen"},
+	{"Up / Down", "Radar zoom"},
 	{"3D slider", "Depth"},
 	{"START", "Options"},
 }

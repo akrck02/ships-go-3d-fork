@@ -66,7 +66,7 @@ func (world *world) showTitle(now float64, view *models.Camera) {
 	position := flight.Vector{titleCrossing * (0.5 - share), titleHeight + 3*math.Sin(share*2*math.Pi), titleDistance}
 	heading := flight.FromEulerXYZ(0, -math.Pi/2, 0)
 	roll := flight.FromEulerXYZ(0, 0, share*titleRollsPerLoop*2*math.Pi)
-	world.title.Hidden = false
+	world.title.Mesh, world.title.Hidden = world.titleMesh, false
 	world.title.Transform = transformOf(position, heading.Then(roll), titleShipScale)
 	world.own.Hidden, world.reticle.Hidden = true, true
 	dustCellsAround(world.dust, flight.Vector{})
@@ -98,14 +98,15 @@ func newTopTitle(bottomScreen *ctr.BottomScreen, theme ui.Theme) (*topTitle, err
 	return &topTitle{context: context, renderer: renderer, state: state}, nil
 }
 
-// paint lays the name out and paints it over the top screen, drawn just before in one picture.
-func (title *topTitle) paint(screen *ctr.Screen) {
+// paint lays a heading and a caption out and paints them over the top screen, drawn just before
+// in one picture.
+func (title *topTitle) paint(screen *ctr.Screen, heading, caption string) {
 	title.context.Begin(title.state)
 	layout := ui.Layout{Direction: ui.Vertical, Width: ui.Fixed(ctr.ScreenWidth), Height: ui.Fixed(ctr.ScreenHeight), AlignX: ui.Center, Gap: 2,
 		Padding: ui.Padding{Top: 28}}
 	title.context.Box(layout, func() {
-		title.context.Text("Ships 3D", ui.TextStyle{Size: titleSize, Weight: draw2d.Bold})
-		title.context.Caption("for Nintendo 3DS")
+		title.context.Text(heading, ui.TextStyle{Size: titleSize, Weight: draw2d.Bold})
+		title.context.Caption(caption)
 	})
 	title.context.End()
 	title.renderer.PaintOver(screen, title.context.Drawing())

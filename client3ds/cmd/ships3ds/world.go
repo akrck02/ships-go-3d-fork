@@ -51,7 +51,8 @@ type world struct {
 	bullets                []*scene.Node
 	view                   chase.View // what the camera saw last, to leave out the ships it can't
 	sky, edge              *scene.Node
-	title                  *scene.Node // the ship that crosses the title screen
+	title                  *scene.Node // the ship that crosses the title screen, or turns on the ship screen
+	titleMesh              *scene.Mesh // the title's ship
 	dust                   []*scene.Node
 }
 
@@ -62,6 +63,7 @@ func newWorld() *world {
 	world.sky = skyNode()
 	world.edge = &scene.Node{Name: "world edge", Transform: graphics.Identity(), Hidden: true}
 	world.title = titleShip()
+	world.titleMesh = world.title.Mesh
 	space.Nodes = append(space.Nodes, world.sky, world.edge, world.title)
 	cell := dustCellMesh()
 	for range 8 {
