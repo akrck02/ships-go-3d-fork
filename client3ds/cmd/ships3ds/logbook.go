@@ -10,17 +10,18 @@ import (
 )
 
 // The game's log, to see what happened on a console nobody can attach a debugger to: each line
-// goes to the debug log (println), to sdmc:/3ds/ships3d/log.txt (read with ftpd), to the options'
-// Log tab, and, when built with a log server, over the network as it happens:
+// goes to the debug log (println), to sdmc:/3ds/ships3d/log.txt (read with ftpd) and, when built
+// with a log server, over the network as it happens:
 //
 //	tinygo build ... -ldflags "-X main.logServer=192.168.1.20:7777" ...
 //
 // and on that computer, for example: nc -lk 7777
 var logServer = ""
 
-// The log's sizes: lines kept for the Log tab, and how often the file is written, in seconds.
+// The log's sizes: the last lines kept, sent to a log server that answers late, and how often the
+// file is written, in seconds.
 const (
-	logLinesShown   = 40
+	logLinesKept    = 40
 	logSaveSeconds  = 2
 	logFile         = "log.txt"
 	logOldFile      = "log-before.txt"
@@ -61,8 +62,8 @@ func (book *logbook) add(text string) {
 	line := strconv.FormatFloat(book.now, 'f', 2, 64) + " " + text
 	println(line)
 	book.lines = append(book.lines, line)
-	if len(book.lines) > logLinesShown {
-		book.lines = book.lines[len(book.lines)-logLinesShown:]
+	if len(book.lines) > logLinesKept {
+		book.lines = book.lines[len(book.lines)-logLinesKept:]
 	}
 	book.unsaved = append(book.unsaved, line...)
 	book.unsaved = append(book.unsaved, '\n')

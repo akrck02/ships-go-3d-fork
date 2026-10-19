@@ -29,7 +29,6 @@ const (
 	textLeft      = 26
 	valueLeft     = 196
 	hintsHeight   = 18
-	cursorWidth   = 7
 	cursorHeight  = 7
 	pixelTextSize = 16 // VT323
 	labelPixels   = 8  // Silkscreen and Press Start 2P, crisp at multiples of 8
@@ -61,6 +60,9 @@ const (
 	moonX, moonY, moonSize = 262, 168, 96
 	moonShadowShift        = 18
 )
+
+// moonCraters are where the moon's craters are, from its top left corner.
+var moonCraters = []draw2d.Rect{{X: 20, Y: 22, Width: 18, Height: 12}, {X: 46, Y: 50, Width: 12, Height: 8}}
 
 var (
 	moonLight  = draw2d.Hex("#dfe9f8")
@@ -126,6 +128,12 @@ func tabWidth(name string, open bool) float32 {
 		}
 	}
 	return width
+}
+
+// shown tells whether something that blinks blinksASecond times a second shows at now: it shows
+// for the share onShare of each blink.
+func shown(now, blinksASecond, onShare float64) bool {
+	return math.Mod(now*blinksASecond, 1) < onShare
 }
 
 // The cursor's bobbing: how far, in pixels, and how fast, in turns a second.
@@ -195,8 +203,9 @@ func starfield(drawing *draw2d.List, now float64) {
 		}
 	}
 	drawing.Rectangle(draw2d.Rect{X: moonX, Y: moonY, Width: moonSize, Height: moonSize}, moonSize/2, moonLight, draw2d.Color{}, 0)
-	drawing.Rectangle(draw2d.Rect{X: moonX + 20, Y: moonY + 22, Width: 18, Height: 12}, 6, moonCrater, draw2d.Color{}, 0)
-	drawing.Rectangle(draw2d.Rect{X: moonX + 46, Y: moonY + 50, Width: 12, Height: 8}, 4, moonCrater, draw2d.Color{}, 0)
+	for _, crater := range moonCraters {
+		drawing.Rectangle(draw2d.Rect{X: moonX + crater.X, Y: moonY + crater.Y, Width: crater.Width, Height: crater.Height}, crater.Height/2, moonCrater, draw2d.Color{}, 0)
+	}
 	shade := draw2d.Rect{X: moonX - moonShadowShift, Y: moonY - moonShadowShift/2, Width: moonSize, Height: moonSize}
 	drawing.Rectangle(shade, moonSize/2, pixel.screen, draw2d.Color{}, 0) // the dark side cuts a crescent
 	for index := range menuStarCount {

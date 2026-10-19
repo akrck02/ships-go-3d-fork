@@ -29,7 +29,6 @@ var (
 const (
 	textSize    = 16 // VT323: text, captions
 	headingSize = 16 // Silkscreen: headings, buttons' labels in bold
-	bigSize     = 24 // Silkscreen: a ship's name, the title's prompt
 	titleSize   = 40 // Silkscreen: the game's name
 )
 

@@ -22,7 +22,12 @@ const (
 	lifeSegmentGap    = 2
 	lifeHeartRoom     = 24 // the heart's place at the bar's left
 	lifeBeatsASecond  = 1.6
-	copilotPixel      = 2.4
+	copilotPixel      = 2.4 // the copilot's face is drawn this many pixels a pixel
+	copilotFaceLeft   = 8
+	copilotWordsLeft  = 52
+	copilotWordsShare = 0.75 // of each blink the words show
+	heartBeatShare    = 0.3  // of each beat the heart is bigger
+	hudShadowDrop     = 2
 	lifeLowShare      = 0.3 // below this much life the charges turn red
 	copilotHeight     = 44
 	copilotMargin     = 8
@@ -119,12 +124,12 @@ func paintLife(drawing *draw2d.List, life, most, now float64) {
 	width := float32(lifeHeartRoom + segments*(lifeSegmentWidth+lifeSegmentGap) + lifeSegmentGap + 2)
 	frame := draw2d.Rect{X: lifeLeft, Y: lifeTop, Width: width, Height: lifeSegmentHeight + 8}
 	shadow := frame
-	shadow.X, shadow.Y = shadow.X+2, shadow.Y+2
+	shadow.X, shadow.Y = shadow.X+hudShadowDrop, shadow.Y+hudShadowDrop
 	stepped(drawing, shadow, 2, hudColours.shadow)
 	stepped(drawing, frame, 2, hudColours.edge)
 	stepped(drawing, inset(frame, 2), 2, hudColours.box)
 	heartSize := float32(2)
-	if low && math.Mod(now*lifeBeatsASecond, 1) < 0.3 {
+	if low && shown(now, lifeBeatsASecond, heartBeatShare) {
 		heartSize = 2.4
 	}
 	paintedBitmap(drawing, lifeHeart, frame.X+7, frame.Y+(frame.Height-6*heartSize)/2, heartSize, heartPalette)
@@ -157,13 +162,13 @@ func mixColours(first, second draw2d.Color, share float32) draw2d.Color {
 func paintCopilot(drawing *draw2d.List, words string, now float64) {
 	box := draw2d.Rect{X: copilotMargin, Y: ctr.ScreenHeight - copilotMargin - copilotHeight, Width: ctr.ScreenWidth - 2*copilotMargin, Height: copilotHeight}
 	shadow := box
-	shadow.X, shadow.Y = shadow.X+2, shadow.Y+2
+	shadow.X, shadow.Y = shadow.X+hudShadowDrop, shadow.Y+hudShadowDrop
 	stepped(drawing, shadow, 2, hudColours.shadow)
 	stepped(drawing, box, 2, hudColours.edge)
 	stepped(drawing, inset(box, 2), 2, hudColours.box)
 	faceTop := box.Y + (copilotHeight-float32(len(copilotFace))*copilotPixel)/2
-	paintedBitmap(drawing, copilotFace, box.X+8, faceTop, copilotPixel, copilotPalette)
-	if math.Mod(now*copilotBlinks, 1) < 0.75 {
-		drawing.Text(words, box.X+52, box.Y+copilotHeight/2+5, pixelTextSize, draw2d.Regular, hudColours.ink)
+	paintedBitmap(drawing, copilotFace, box.X+copilotFaceLeft, faceTop, copilotPixel, copilotPalette)
+	if shown(now, copilotBlinks, copilotWordsShare) {
+		drawing.Text(words, box.X+copilotWordsLeft, box.Y+copilotHeight/2+5, pixelTextSize, draw2d.Regular, hudColours.ink)
 	}
 }

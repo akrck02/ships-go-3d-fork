@@ -248,15 +248,16 @@ func controlsPageOf() menuPage {
 
 // The title screen's prompt: it blinks, as arcade screens did, at blinksPerSecond.
 const (
-	blinksPerSecond = 1.5
-	promptY         = 124
+	blinksPerSecond  = 1.5
+	promptShowsShare = 0.65 // of each blink
+	promptY          = 124
 )
 
 // paintTitlePrompt draws the title screen's touch screen clean: the night, its stars and a
 // blinking prompt; the name is on the top screen.
 func (session *session) paintTitlePrompt(area draw2d.Rect, drawing *draw2d.List) {
 	starfield(drawing, session.now)
-	if math.Mod(session.now*blinksPerSecond, 1) < 0.65 {
+	if shown(session.now, blinksPerSecond, promptShowsShare) {
 		session.centredText(drawing, "TOUCH OR PRESS A", promptY, labelPixels, draw2d.Mono, pixel.ink)
 	}
 }
@@ -265,7 +266,6 @@ func (session *session) paintTitlePrompt(area draw2d.Rect, drawing *draw2d.List)
 const (
 	shipArrowY      = (ctr.BottomHeight - 2*shipArrowWidth) / 2
 	shipArrowWidth  = 8
-	shipNameWidest  = ctr.BottomWidth - 2*(shipArrowMargin+shipArrowWidth+8)
 	shipArrowMargin = 12
 	textShadowDrop  = 2
 )
@@ -309,16 +309,4 @@ func (session *session) centredText(drawing *draw2d.List, text string, y, size f
 
 func (session *session) textWidth(text string, size float32, weight draw2d.Weight) float32 {
 	return session.measurer.MeasureText(text, size, weight, 1).Width
-}
-
-// shipNameCharacters is how much of a ship's name fits between its arrows.
-const shipNameCharacters = 13
-
-// shipLabel is a ship's name shortened to fit, with "My" before the player's own designs.
-func shipLabel(choice shipChoice) string {
-	label := fitted(choice.name, shipNameCharacters)
-	if choice.own {
-		return "My " + label
-	}
-	return label
 }

@@ -23,6 +23,7 @@ const (
 	platformRadius    = 10
 	platformThickness = 1.2
 	keelDepth         = 7
+	deckInset         = 1.5 // the deck's plate inside the platform's rim
 	spotlightsAround  = 4
 	spotlightRadius   = platformRadius - 0.8
 	lampSize          = 1
@@ -34,6 +35,7 @@ const (
 	beamLean          = 0.3 // radians the beams lean outward
 	beamSway          = 0.2 // radians they sweep either way
 	beamSwaySpeed     = 0.5 // radians a second
+	beamPhaseStep     = 1.7 // radians between one beam's sweep and the next's, so they never move as one
 	previewSkyRadius  = 150 // the stars' sphere, inside the preview camera's reach
 	planetDiameter    = 45
 )
@@ -76,7 +78,7 @@ func newHangar() *hangar {
 		position := spotlightPlace(index)
 		node := &scene.Node{Name: "beam", Mesh: beam}
 		built.nodes = append(built.nodes, node)
-		built.beams = append(built.beams, spotlight{node: node, position: position, outward: math.Copysign(1, position[0]), phase: float64(index) * 1.7})
+		built.beams = append(built.beams, spotlight{node: node, position: position, outward: math.Copysign(1, position[0]), phase: float64(index) * beamPhaseStep})
 	}
 	return built
 }
@@ -97,7 +99,7 @@ func hangarParts() []protocol.Part {
 	upsideDown := flight.Vector{math.Pi, 0, 0}
 	parts := []protocol.Part{
 		part("cylinder", flight.Vector{0, platformTop - platformThickness/2, centre}, flight.Vector{}, flight.Vector{2 * platformRadius, platformThickness, 2 * platformRadius}, hangarHull),
-		part("cylinder", flight.Vector{0, platformTop + 0.05, centre}, flight.Vector{}, flight.Vector{2*platformRadius - 3, 0.1, 2*platformRadius - 3}, hangarDeck),
+		part("cylinder", flight.Vector{0, platformTop + 0.05, centre}, flight.Vector{}, flight.Vector{2 * (platformRadius - deckInset), 0.1, 2 * (platformRadius - deckInset)}, hangarDeck),
 		part("torus", flight.Vector{0, platformTop, centre}, flight.Vector{math.Pi / 2, 0, 0}, flight.Vector{2*platformRadius + 0.6, 2*platformRadius + 0.6, 0.6}, hangarRim),
 		part("cone", flight.Vector{0, platformTop - platformThickness - keelDepth/2, centre}, upsideDown, flight.Vector{1.4 * platformRadius, keelDepth, 1.4 * platformRadius}, hangarKeel),
 		part("sphere", planetPlace, flight.Vector{}, flight.Vector{planetDiameter, planetDiameter, planetDiameter}, hangarPlanet),

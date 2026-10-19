@@ -108,17 +108,9 @@ func (client *Client) Receive() ([]string, error) {
 	if client.closed {
 		return nil, ErrClosed
 	}
-	// A server sending faster than we read can't make pending grow past one whole message.
-	for len(client.pending) <= MaximumMessageBytes+maximumHeaderBytes {
-		count, err := client.transport.Read(client.chunk)
-		if err != nil {
-			client.closed = true
-			return client.messages, fmt.Errorf("%w: %w", ErrClosed, err)
-		}
-		if count == 0 {
-			break
-		}
-		client.pending = append(client.pending, client.chunk[:count]...)
+	if err := client.readAvailable(); err != nil {
+		client.closed = true
+		return client.messages, err
 	}
 	if !client.open {
 		done, err := client.readHandshake()
@@ -130,12 +122,36 @@ func (client *Client) Receive() ([]string, error) {
 			return nil, nil
 		}
 	}
+	if err := client.readFrames(); err != nil {
+		client.closed = true
+		return client.messages, err
+	}
+	return client.messages, nil
+}
+
+// readAvailable adds to pending what the transport has, without waiting. A server sending
+// faster than we read can't make pending grow past one whole message.
+func (client *Client) readAvailable() error {
+	for len(client.pending) <= MaximumMessageBytes+maximumHeaderBytes {
+		count, err := client.transport.Read(client.chunk)
+		if err != nil {
+			return fmt.Errorf("%w: %w", ErrClosed, err)
+		}
+		if count == 0 {
+			return nil
+		}
+		client.pending = append(client.pending, client.chunk[:count]...)
+	}
+	return nil
+}
+
+// readFrames takes the whole frames in pending as messages, and keeps the rest for later.
+func (client *Client) readFrames() error {
 	read := 0
 	for {
 		consumed, err := client.readFrame(client.pending[read:])
 		if err != nil {
-			client.closed = true
-			return client.messages, err
+			return err
 		}
 		if consumed == 0 {
 			break
@@ -144,7 +160,7 @@ func (client *Client) Receive() ([]string, error) {
 	}
 	// Keep what is left at the start of the same buffer, so it is reused frame after frame.
 	client.pending = client.pending[:copy(client.pending, client.pending[read:])]
-	return client.messages, nil
+	return nil
 }
 
 // readHandshake checks the server's answer once it has arrived whole.

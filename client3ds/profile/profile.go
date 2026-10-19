@@ -5,7 +5,7 @@ package profile
 
 import "encoding/json"
 
-// Settings are the player's choices in the Settings tab.
+// Settings are the player's choices in the menu's SETUP page.
 type Settings struct {
 	InvertPitch bool    `json:"invertPitch"` // up on the circle pad raises the nose, instead of a plane's way
 	Precision   float32 `json:"precision"`   // 0 to 1: how much softer the circle pad is near its centre

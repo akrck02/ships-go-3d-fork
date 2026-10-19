@@ -18,12 +18,10 @@ import (
 	"time"
 
 	"github.com/akrck02/go-3ds/app"
-	"github.com/akrck02/go-3ds/bottom"
 	"github.com/akrck02/go-3ds/network"
 	"github.com/akrck02/go-renderer/ctr"
 	"github.com/akrck02/go-renderer/draw2d"
 	"github.com/akrck02/go-renderer/models"
-	"github.com/akrck02/go-renderer/opengl/overlay"
 
 	"ships3d/client3ds/account"
 	"ships3d/client3ds/chase"
@@ -53,113 +51,69 @@ func main() {
 	if err := network.Start(); err != nil {
 		println(err.Error()) // the debug log; entering the server says so again
 	}
-	screen, err := ctr.Open()
+	shown, err := openDisplay()
 	if err != nil {
 		println(err.Error())
 		return
 	}
-	defer screen.Close()
-	usePixelFonts()
-	measurer, err := overlay.NewMeasurer()
-	if err != nil {
-		println(err.Error())
-		return
-	}
-	panel, err := bottom.New(spaceTheme())
-	if err != nil {
-		println(err.Error())
-		return
-	}
-	renderer, err := ctr.NewSceneRenderer(screen)
-	if err != nil {
-		println(err.Error())
-		return
-	}
-	dish, err := newRadarScene(screen)
-	if err != nil {
-		println(err.Error())
-		return
-	}
-	preview, err := newPreviewScene(screen)
-	if err != nil {
-		println(err.Error())
-		return
-	}
-	title, err := newTopTitle(panel.Screen(), spaceTheme())
-	if err != nil {
-		println(err.Error())
-		return
-	}
+	defer shown.close()
+	session := startSession(shown.measurer)
+	world := newWorld()
+	start := time.Now()
+	view := models.Camera{Far: cameraFar, Near: cameraNear, FieldOfView: chase.FieldOfView}
+	app.RunWithStart(func(frame app.Frame) bool {
+		return session.playFrame(shown, world, &view, frame, time.Since(start).Seconds())
+	})
+	session.close()
+}
 
+// startSession makes the game's session from what the SD card remembers, with its log and its
+// sound.
+func startSession(measurer draw2d.Measurer) *session {
 	session := newSession(loadProfile())
 	session.measurer = measurer
 	session.log = newLogbook()
 	session.log.add("Ships 3D for the 3DS starts; server " + session.profile.Server + ", logged in: " + strconv.FormatBool(session.account.Token != ""))
 	session.log.connectRemote()
-	sfx, err := newSounds()
+	sounds, err := newSounds()
 	if err != nil {
 		session.log.add("no sound: " + err.Error())
 	}
-	session.sounds = sfx
+	session.sounds = sounds
 	session.applyVolumes()
-	world := newWorld()
-	start := time.Now()
-	var readings draw2d.List // the top screen's readings over the game (hud.go)
-	view := models.Camera{Far: cameraFar, Near: cameraNear, FieldOfView: chase.FieldOfView}
-	app.RunWithStart(func(frame app.Frame) bool {
-		frameStart := time.Now()
-		now := frameStart.Sub(start).Seconds()
-		session.now = now
-		if !session.press(frame) {
-			return false
-		}
-		session.exchange(frame, now)
-		networkTime := time.Since(frameStart)
-		events := session.game.TakeEvents()
-		session.hear(events)
-		state := session.game
-		flying := session.screen == gameScreen && state.Welcomed && state.Alive
-		session.sounds.runEngine(flying, math.Abs(state.Own.Speed)/math.Max(state.Settings.MaxSpeed, 1))
-		world.show(session.game, events, &view, frame.Seconds, now)
-		heading, caption := session.topHeading()
-		switch session.screen {
-		case titleScreen, enteringScreen:
-			world.showTitle(now, &view)
-		case shipScreen:
-			world.showTitle(now, &view)
-			world.title.Hidden = true // the ship turns on the touch screen; the top shows its name
-		}
+	return session
+}
 
-		ctr.BeginFrame()
-		if heading != "" {
-			// One picture rather than two eyes: the words painted over it would show double in 3D.
-			renderer.PaintOn(screen, world.scene, view)
-			title.paint(screen, heading, caption)
-		} else {
-			separation := ctr.Slider3D() * eyeSeparation
-			renderer.PaintStereo(world.scene, view, separation, focalDistance)
-			if session.screen == gameScreen && session.game.Welcomed {
-				paintHUD(&readings, session.game, now)
-				title.paintOver(screen, &readings, separation > 0)
-			}
-		}
-		switch {
-		case session.showsRadar3D():
-			dish.paint(panel.Screen(), session.scanner, now)
-			panel.PaintOver(frame.Input, session.build)
-		case session.screen == shipScreen && !session.menuOpen && session.confirming == noChange:
-			mesh, scale := session.previewShip(world)
-			preview.paint(panel.Screen(), mesh, scale, now)
-			panel.PaintOver(frame.Input, session.build)
-		default:
-			panel.Paint(frame.Input, session.build)
-		}
-		session.measure(frame, renderer, time.Since(frameStart), networkTime, now)
-		ctr.EndFrame()
-		session.betweenFrames()
-		return true
-	})
-	session.close()
+// playFrame plays one frame: the buttons, the network, the sound, then both screens. It tells
+// whether to go on.
+func (session *session) playFrame(shown *display, world *world, view *models.Camera, frame app.Frame, now float64) bool {
+	frameStart := time.Now()
+	session.now = now
+	if !session.press(frame) {
+		return false
+	}
+	session.exchange(frame, now)
+	networkTime := time.Since(frameStart)
+	events := session.game.TakeEvents()
+	session.hear(events)
+	state := session.game
+	flying := session.screen == gameScreen && state.Welcomed && state.Alive
+	session.sounds.runEngine(flying, math.Abs(state.Own.Speed)/math.Max(state.Settings.MaxSpeed, 1))
+	world.show(state, events, view, frame.Seconds, now)
+	switch session.screen {
+	case titleScreen, enteringScreen:
+		world.showTitle(now, view)
+	case shipScreen:
+		world.showTitle(now, view)
+		world.title.Hidden = true // the ship turns on the touch screen; the top shows its name
+	}
+	ctr.BeginFrame()
+	shown.paintTop(session, world, *view, now)
+	shown.paintBottom(session, world, frame, now)
+	session.measure(frame, shown.renderer, time.Since(frameStart), networkTime, now)
+	ctr.EndFrame()
+	session.betweenFrames()
+	return true
 }
 
 // screen is what the touch screen shows.
@@ -199,7 +153,7 @@ type session struct {
 	figures    figures.Counter
 	reader     protocol.Reader
 	tilt       tilt.Tilt
-	gyroscope  app.Gyroscope // this frame's, for the Figures tab
+	gyroscope  app.Gyroscope // this frame's, for the menu's STATS page
 	heapBytes  uint64        // the heap's size, read now and then
 	memoryAt   float64       // when it was read, in seconds
 	log        *logbook
@@ -290,21 +244,23 @@ func (session *session) press(frame app.Frame) bool {
 		session.pressOnShipScreen(pressed, frame.Reading, input)
 		return true
 	}
-	if pressed&ctr.ButtonStart != 0 {
+	session.pressInGame(input)
+	return true
+}
+
+// pressInGame acts on the buttons in the game: START opens and closes the menu, which then takes
+// the buttons; the cross's up and down zoom the radar.
+func (session *session) pressInGame(input menuInput) {
+	switch {
+	case input.pressed&ctr.ButtonStart != 0:
 		session.toggleMenu()
-		return true
-	}
-	if session.menuOpen || !session.game.Welcomed {
+	case session.menuOpen || !session.game.Welcomed:
 		session.pressPages(input)
-		return true
-	}
-	if pressed&ctr.ButtonUp != 0 {
+	case input.pressed&ctr.ButtonUp != 0:
 		session.mapRange = max(session.mapRange-1, 0)
-	}
-	if pressed&ctr.ButtonDown != 0 {
+	case input.pressed&ctr.ButtonDown != 0:
 		session.mapRange = min(session.mapRange+1, len(radar.Ranges)-1)
 	}
-	return true
 }
 
 // leave closes the game's connection and goes back to choosing a ship.
@@ -326,6 +282,27 @@ func (session *session) exchange(frame app.Frame, now float64) {
 		session.leave("Disconnected: " + err.Error())
 		return
 	}
+	if err := session.receive(now); err != nil {
+		session.leave("Disconnected: " + err.Error())
+		return
+	}
+	if !session.client.Open() {
+		return
+	}
+	if !session.joined {
+		session.joined = true
+		session.status = "Joining…"
+		session.send(protocol.Join(session.ships[session.ship].id, session.playerName()))
+	}
+	if session.game.Welcomed {
+		session.status = "Playing on " + session.profile.Server
+	}
+	session.fly(frame, now)
+	session.scan(now)
+}
+
+// receive hands the game what the server sent since the last frame.
+func (session *session) receive(now float64) error {
 	messages, err := session.client.Receive()
 	for _, text := range messages {
 		message, states, readErr := session.reader.Read(text)
@@ -342,21 +319,11 @@ func (session *session) exchange(frame app.Frame, now float64) {
 		}
 		session.game.Handle(message, states, now)
 	}
-	if err != nil {
-		session.leave("Disconnected: " + err.Error())
-		return
-	}
-	if !session.client.Open() {
-		return
-	}
-	if !session.joined {
-		session.joined = true
-		session.status = "Joining…"
-		session.send(protocol.Join(session.ships[session.ship].id, session.playerName()))
-	}
-	if session.game.Welcomed {
-		session.status = "Playing on " + session.profile.Server
-	}
+	return err
+}
+
+// fly moves our ship on with this frame's controls and sends what the server must hear.
+func (session *session) fly(frame app.Frame, now float64) {
 	tiltOf(&session.tilt, frame)
 	if frame.Pressed&ctr.ButtonL != 0 && !session.menuOpen {
 		session.tilt.Centre()
@@ -369,7 +336,6 @@ func (session *session) exchange(frame app.Frame, now float64) {
 	for _, text := range session.game.Step(controls, firing, firing, frame.Seconds, now) {
 		session.send(text)
 	}
-	session.scan(now)
 }
 
 // scan turns the map's sweep and lets it see the ships it passes over.
@@ -423,7 +389,7 @@ func (session *session) close() {
 	network.Stop()
 }
 
-// measure counts the frame for the Figures tab; processor is how long the frame took before
+// measure counts the frame for the menu's STATS page; processor is how long the frame took before
 // waiting for the screen.
 func (session *session) measure(frame app.Frame, renderer *ctr.SceneRenderer, processor, network time.Duration, now float64) {
 	statistics := renderer.Statistics(processor)
@@ -483,5 +449,5 @@ func (session *session) showsRadar3D() bool {
 	return session.screen == gameScreen && !session.menuOpen && session.game.Welcomed && !session.profile.Settings.FlatRadar
 }
 
-// memoryEverySeconds is how often the Figures tab reads the heap's size.
+// memoryEverySeconds is how often the STATS page reads the heap's size.
 const memoryEverySeconds = 1

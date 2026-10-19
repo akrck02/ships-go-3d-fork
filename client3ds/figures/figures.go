@@ -1,4 +1,4 @@
-// Package figures measures how a game runs, for the console's Figures tab: frames a second, time
+// Package figures measures how a game runs, for the console's STATS page: frames a second, time
 // spent on the processor and the GPU, what was drawn, and what went through the network. Each
 // figure is gathered over a second and shown for the next, so the numbers stay readable.
 package figures
