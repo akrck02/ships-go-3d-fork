@@ -1,5 +1,33 @@
 CHANGES
 =======
+Version 0.6.0 - 2026-10-19
+------------------
+A new game mode, the assault, on its own websocket: `/ws/assault`. The free
+for all at `/ws` is unchanged.
+
+- Two teams and a mothership at the centre of the world. Attackers fly their
+  ships and try to destroy it; gunners sit in turrets on its hull and shoot
+  the attackers down. An attacker's ship takes 3 hits, and respawns after the
+  usual delay; the mothership takes 100. Attackers can only hit the
+  mothership and gunners only attackers: there is no friendly fire.
+- The attackers win by destroying the mothership. The gunners win if it is
+  still flying after 5 minutes, or the attackers all leave (and the other
+  way round).
+- Teams are dealt at random when a round starts: one gunner for about three
+  attackers (4 players: 1 gunner, 20 players: 5), and always at least one.
+  The turrets are spread around the ship, alternating between its top and
+  its underside.
+- Players wait in a lobby. It starts its round 30 seconds after the last
+  player joined, once there are at least 4; with 20 it starts at once. A new
+  lobby then opens for the next players. When a round ends, its result is
+  shown for 10 seconds and then all its players go back to the open lobby
+  together.
+- Hits on the mothership are checked against its actual shape (every part's
+  box), not a sphere: it never moves, so the server knows exactly where it is.
+- The rules (players, waits, lives, reloads, round length) are in
+  `AssaultRules`, sent to the players with each round.
+- `/status` also counts the players in the assault mode.
+
 Version 0.5.0 - 2026-10-19
 ------------------
 Messages for players in Spanish and Basque (Euskara), as well as English.

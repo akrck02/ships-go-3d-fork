@@ -17,6 +17,9 @@ func (s *Server) registerGameRoutes(router *gin.Engine) {
 	router.GET("/ws", func(c *gin.Context) {
 		s.hub.ServeWS(c.Writer, c.Request)
 	})
+	router.GET("/ws/assault", func(c *gin.Context) {
+		s.arena.ServeWS(c.Writer, c.Request)
+	})
 }
 
 // gameShips lists the ships a player can choose from: the built-in ones, and

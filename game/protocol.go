@@ -81,6 +81,11 @@ type PlayerInfo struct {
 	P      vec3     `json:"p"`
 	Q      quat     `json:"q"`
 	V      vec3     `json:"v"`
+	// Assault mode only: the player's team, hits on the mothership (by an
+	// attacker), and a gunner's seat.
+	Team string `json:"team,omitempty"`
+	Hits int    `json:"hits,omitempty"`
+	Seat *Seat  `json:"seat,omitempty"`
 }
 
 type welcomeMsg struct {
@@ -145,4 +150,65 @@ type respawnedMsg struct {
 type errorMsg struct {
 	Type    string `json:"type"`
 	Message string `json:"message"`
+}
+
+// The assault mode (/ws/assault) uses the same messages in a round, and
+// these around it. A hit on the mothership has target "mothership", and so
+// do the damage messages it causes.
+//
+// Server -> client:
+//   lobby       {id, players: [{id, name, guest}], minPlayers, maxPlayers, startsInMs?}
+//               on joining and whenever the lobby changes; startsInMs only
+//               while it is counting down
+//   roundStart  {id, settings, rules, mothership, players, endsInMs}
+//               players carry their team, and gunners their seat
+//   roundOver   {winner, returnInMs}  winner is "attackers" or "gunners"
+
+const (
+	msgLobby      = "lobby"
+	msgRoundStart = "roundStart"
+	msgRoundOver  = "roundOver"
+
+	TeamAttackers = "attackers"
+	TeamGunners   = "gunners"
+
+	mothershipTarget = "mothership"
+)
+
+type lobbyPlayer struct {
+	Id    string `json:"id"`
+	Name  string `json:"name"`
+	Guest bool   `json:"guest"`
+}
+
+type lobbyMsg struct {
+	Type       string        `json:"type"`
+	Id         string        `json:"id"`
+	Players    []lobbyPlayer `json:"players"`
+	MinPlayers int           `json:"minPlayers"`
+	MaxPlayers int           `json:"maxPlayers"`
+	StartsInMs *int64        `json:"startsInMs,omitempty"`
+}
+
+type MothershipInfo struct {
+	Ship    ShipInfo `json:"ship"`
+	Scale   float64  `json:"scale"`
+	Life    float64  `json:"life"`
+	MaxLife float64  `json:"maxLife"`
+}
+
+type roundStartMsg struct {
+	Type       string         `json:"type"`
+	Id         string         `json:"id"`
+	Settings   Settings       `json:"settings"`
+	Rules      AssaultRules   `json:"rules"`
+	Mothership MothershipInfo `json:"mothership"`
+	Players    []PlayerInfo   `json:"players"`
+	EndsInMs   int64          `json:"endsInMs"`
+}
+
+type roundOverMsg struct {
+	Type       string `json:"type"`
+	Winner     string `json:"winner"`
+	ReturnInMs int64  `json:"returnInMs"`
 }

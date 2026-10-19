@@ -14,7 +14,6 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 
 	"ships3d/i18n"
@@ -69,6 +68,12 @@ type Player struct {
 	kills    int
 	deaths   int
 	lastFire time.Time
+
+	// Assault mode only.
+	team    string
+	hits    int
+	seat    *Seat
+	arrival int
 }
 
 func (p *Player) info() PlayerInfo {
@@ -76,6 +81,7 @@ func (p *Player) info() PlayerInfo {
 		Id: p.id, Name: p.name, Guest: p.identity.Guest(), Ship: p.ship, Scale: p.scale,
 		Life: p.life, Dead: p.dead, Kills: p.kills, Deaths: p.deaths,
 		P: p.pos, Q: p.rot, V: p.vel,
+		Team: p.team, Hits: p.hits, Seat: p.seat,
 	}
 }
 
@@ -173,41 +179,9 @@ func (h *Hub) bulletTtl() time.Duration {
 // ServeWS upgrades an HTTP request and runs the connection until it closes.
 func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 	identity := h.identify(r)
-	conn, err := h.upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		return
-	}
-	c := newClient(conn)
-	c.lang = i18n.FromRequest(r)
-	go c.writePump()
-
-	id := uuid.NewString()
-	defer func() {
-		c.close()
-		h.leave(id)
-	}()
-
-	conn.SetReadLimit(maxMessageSize)
-	_ = conn.SetReadDeadline(time.Now().Add(pongTimeout))
-	conn.SetPongHandler(func(string) error {
-		return conn.SetReadDeadline(time.Now().Add(pongTimeout))
-	})
-
-	for {
-		_, data, err := conn.ReadMessage()
-		if err != nil {
-			return
-		}
-		_ = conn.SetReadDeadline(time.Now().Add(pongTimeout))
-		if !c.allowMessage(h.now()) {
-			log.Printf("game: disconnecting %s, too many messages (sustained over %.0f/s)", id, messageRate)
-			// Say why, rather than just dropping the connection.
-			h.sendTo(c, errorMsg{Type: msgError, Message: i18n.New("tooManyMessages").In(c.lang)})
-			time.Sleep(rateLimitGrace)
-			return
-		}
+	serveConnection(&h.upgrader, h.now, w, r, func(id string, c *client, data []byte) {
 		h.handleMessage(id, c, identity, data)
-	}
+	}, h.leave)
 }
 
 func (h *Hub) handleMessage(id string, c *client, identity Identity, data []byte) {
@@ -423,14 +397,7 @@ func (h *Hub) broadcastLocked(msg any, except string) {
 	}
 }
 
-func (h *Hub) sendTo(c *client, msg any) {
-	frame, err := json.Marshal(msg)
-	if err != nil {
-		log.Println("game: marshal:", err)
-		return
-	}
-	c.enqueue(frame)
-}
+func (h *Hub) sendTo(c *client, msg any) { sendTo(c, msg) }
 
 // PlayerCount is the number of players in game.
 func (h *Hub) PlayerCount() int {

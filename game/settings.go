@@ -48,3 +48,56 @@ func DefaultSettings() Settings {
 		RespawnDelayMs: 3000,
 	}
 }
+
+// AssaultRules are the rules of the assault mode, on top of Settings: two
+// teams around a mothership at the centre of the world. Attackers fly ships
+// and try to destroy it; gunners sit in turrets on it and shoot them down.
+// Players wait in a lobby until enough of them are there to start a round.
+type AssaultRules struct {
+	// A lobby starts its round once it has at least MinPlayers and nobody
+	// has joined for LobbyWaitMs, or at once when it reaches MaxPlayers.
+	MinPlayers  int `json:"minPlayers"`
+	MaxPlayers  int `json:"maxPlayers"`
+	LobbyWaitMs int `json:"lobbyWaitMs"`
+	// AttackersPerGunner sets the teams: one gunner for about this many
+	// attackers, and always at least one.
+	AttackersPerGunner int `json:"attackersPerGunner"`
+	// Hits an attacker's ship takes (it replaces Settings.MaxLife in a
+	// round), and hits the mothership takes.
+	AttackerLife   float64 `json:"attackerLife"`
+	MothershipLife float64 `json:"mothershipLife"`
+	// MothershipRadius is the size the mothership's design is scaled to,
+	// as ShipRadius is for the attackers' ships.
+	MothershipRadius float64 `json:"mothershipRadius"`
+	// Reloads: the attackers' (it replaces Settings.FireCooldownMs in a
+	// round) and the turrets'.
+	AttackerCooldownMs int `json:"attackerCooldownMs"`
+	GunnerCooldownMs   int `json:"gunnerCooldownMs"`
+	// GunnerTurnRate is how fast a turret turns, in radians a second.
+	GunnerTurnRate float64 `json:"gunnerTurnRate"`
+	// SpawnDistance is how far from the mothership attackers appear.
+	SpawnDistance float64 `json:"spawnDistance"`
+	// A round the mothership survives for RoundMs is won by the gunners.
+	RoundMs int `json:"roundMs"`
+	// ResultsMs is how long the result is shown before everybody is back in
+	// the lobby.
+	ResultsMs int `json:"resultsMs"`
+}
+
+func DefaultAssaultRules() AssaultRules {
+	return AssaultRules{
+		MinPlayers:         4,
+		MaxPlayers:         20,
+		LobbyWaitMs:        30000,
+		AttackersPerGunner: 3,
+		AttackerLife:       3,
+		MothershipLife:     100,
+		MothershipRadius:   180,
+		AttackerCooldownMs: 600,
+		GunnerCooldownMs:   150,
+		GunnerTurnRate:     1.6,
+		SpawnDistance:      1000,
+		RoundMs:            5 * 60 * 1000,
+		ResultsMs:          10000,
+	}
+}
