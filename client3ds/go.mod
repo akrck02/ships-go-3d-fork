@@ -18,5 +18,6 @@ require (
 // go-3ds is built from a local copy, with its network package (branch feature/network).
 replace github.com/akrck02/go-3ds => ../../go-3ds
 
-// As go-3ds: go-renderer's feature/3ds, which has ctr.
-replace github.com/akrck02/go-renderer => github.com/akrck02/go-renderer v0.0.0-20261017105741-76ca23f13554
+// go-renderer is built from a local copy too: its branch feature/3ds-moving-light, which lights
+// moving nodes on the GPU in ctr.
+replace github.com/akrck02/go-renderer => ../../go-3ds-fase0/go-renderer-main

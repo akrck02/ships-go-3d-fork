@@ -1,5 +1,3 @@
-github.com/akrck02/go-renderer v0.0.0-20261017105741-76ca23f13554 h1:H/ck/cvWsprebGFbYrS5pgrl35g3xUvkrt/xOaMZtjg=
-github.com/akrck02/go-renderer v0.0.0-20261017105741-76ca23f13554/go.mod h1:Z835tJYTrI/B+rxk5BbIMsDFokk+P36R8kZ0CVbEZzA=
 github.com/akrck02/go-ui v0.0.0-20261018091606-e6c4eac3b690 h1:zwSqoXLcMfeMdfNIKjnL3Fcpo23FdSMyByueTiecLkE=
 github.com/akrck02/go-ui v0.0.0-20261018091606-e6c4eac3b690/go.mod h1:a0uwlVS2H8pinhpefogGLjLYwfwcgFD/iriCHCxU3CI=
 github.com/gorilla/websocket v1.5.3 h1:saDtZ6Pbx/0u+bgYQ3q96pZgCzfhKXGPqt7kZ72aNNg=

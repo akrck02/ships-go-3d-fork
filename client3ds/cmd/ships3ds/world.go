@@ -14,7 +14,6 @@ import (
 	"ships3d/client3ds/game"
 	"ships3d/client3ds/protocol"
 	"ships3d/client3ds/ship"
-	"ships3d/client3ds/turning"
 )
 
 // The camera, in world units: a chase camera above and behind the ship, as the browser's, in ship
@@ -54,11 +53,8 @@ type world struct {
 	camera                 chase.Camera
 	wasAlive               bool
 	reticle                *scene.Node
-	remotes                map[string]*remoteShip
+	remotes                map[string]*scene.Node
 	bullets                []*scene.Node
-	candidates             []turning.Candidate // this frame's, reused
-	candidateIds           []string
-	chooser                turning.Chooser
 	view                   chase.View // what the camera saw last, to leave out the ships it can't
 }
 
@@ -70,15 +66,16 @@ func newWorld() *world {
 	space.Environment.Ambient = 0.45
 	space.Environment.SunDirection = graphics.Vec4{-0.4, 0.8, 0.45, 0}.Normalize()
 	space.Nodes = append(space.Nodes, &scene.Node{Name: "dust", Transform: graphics.Identity(), Mesh: dust()})
-	space.Nodes = append(space.Nodes, &scene.Node{Name: "ground", Transform: graphics.Identity(), Mesh: stillGround()})
-	world := &world{scene: space, ships: map[meshKey]*scene.Mesh{}, remotes: map[string]*remoteShip{}}
-	world.own = &scene.Node{Name: "own", Hidden: true}
-	world.reticle = &scene.Node{Name: "reticle", Mesh: reticle(), Hidden: true}
+	world := &world{scene: space, ships: map[meshKey]*scene.Mesh{}, remotes: map[string]*scene.Node{}}
+	// Ships and the aim cross turn all the time: Moving has go-renderer light them on the GPU
+	// rather than bake their light again at every turn.
+	world.own = &scene.Node{Name: "own", Hidden: true, Moving: true}
+	world.reticle = &scene.Node{Name: "reticle", Mesh: reticle(), Hidden: true, Moving: true}
 	space.Nodes = append(space.Nodes, world.own, world.reticle)
 	world.ownBullet = box("own bullet", bulletSize, bulletSize, bulletSize, ownBulletColour)
 	world.otherBullet = box("other bullet", bulletSize, bulletSize, bulletSize, otherBulletColour)
 	for range maximumShown {
-		node := &scene.Node{Name: "bullet", Mesh: ownCopy(world.ownBullet), Hidden: true}
+		node := &scene.Node{Name: "bullet", Mesh: world.ownBullet, Hidden: true}
 		world.bullets = append(world.bullets, node)
 		space.Nodes = append(space.Nodes, node)
 	}
@@ -94,10 +91,10 @@ func (world *world) show(state *game.Game, view *models.Camera, seconds float64)
 	scale := state.Player.Scale
 	if world.ownShip != state.Player.Ship.Id {
 		world.ownShip = state.Player.Ship.Id
-		world.own.Mesh = ownCopy(world.shipMesh(state.Player.Ship.Id, state.Player.Ship.Layers, ship.Fine))
+		world.own.Mesh = world.shipMesh(state.Player.Ship.Id, state.Player.Ship.Layers, ship.Fine)
 	}
 	world.own.Hidden = !state.Alive
-	place(world.own, transformOf(state.Own.Position, state.Own.Rotation, scale))
+	world.own.Transform = transformOf(state.Own.Position, state.Own.Rotation, scale)
 	if state.Alive && !world.wasAlive {
 		world.camera.Reset() // back from a respawn, far from the wreck
 	}
@@ -126,71 +123,38 @@ func (world *world) shipMesh(id string, layers []protocol.Layer, detail ship.Det
 	return mesh
 }
 
-// remoteShip is another player's ship on the screen: its node, the detail it is drawn at, and
-// the orientation its light was last worked out for (see package turning).
-type remoteShip struct {
-	node     *scene.Node
-	detail   ship.Detail
-	rotation flight.Rotation
-}
-
-// How many remote ships may show a new orientation each frame, and where ships turn coarse.
+// Where ships turn coarse, and where they are too far to draw at all, in world units.
 const (
-	turnsPerFrame  = 2
-	coarseDistance = 60    // world units: from here a ship is a few dozen pixels wide, and fine detail too dear to bake
-	unnoticedTurn  = 0.005 // radians: a quarter of a degree, too little to show
-	sightDistance  = 700   // world units: farther, a ship is a pixel or two, and isn't drawn
+	coarseDistance = 60  // from here a ship is a few dozen pixels wide
+	sightDistance  = 700 // farther, a ship is a pixel or two
 )
 
 func (world *world) showRemotes(state *game.Game) {
-	for id, remote := range world.remotes {
+	for id, node := range world.remotes {
 		if _, found := state.Remotes[id]; !found {
-			remote.node.Hidden = true
+			node.Hidden = true
 			delete(world.remotes, id)
 		}
 	}
-	world.candidates, world.candidateIds = world.candidates[:0], world.candidateIds[:0]
 	for id, player := range state.Remotes {
-		// Only the ships the camera can see are drawn, and only those get a mesh: the radar
-		// shows the rest.
+		// Only the ships the camera can see are drawn, and only those get a node: the radar shows
+		// the rest.
 		visible := !player.Player.Dead && world.view.Sees(player.Shown.Position, state.Settings.ShipRadius, sightDistance)
-		remote, found := world.remotes[id]
-		if !found && !visible {
+		node, found := world.remotes[id]
+		if !visible {
+			if found {
+				node.Hidden = true
+			}
 			continue
 		}
 		if !found {
-			remote = &remoteShip{node: world.reuseOrAddNode(), rotation: player.Shown.Rotation, detail: ship.Coarse}
-			remote.node.Mesh = ownCopy(world.shipMesh(player.Player.Ship.Id, player.Player.Ship.Layers, remote.detail))
-			world.remotes[id] = remote
-		}
-		remote.node.Hidden = !visible
-		if !visible {
-			continue
+			node = world.reuseOrAddNode()
+			world.remotes[id] = node
 		}
 		distance := player.Shown.Position.Subtract(state.Own.Position).Length()
-		turned := turning.Angle(remote.rotation, player.Shown.Rotation)
-		if turned < unnoticedTurn {
-			turned = 0
-		}
-		world.candidates = append(world.candidates, turning.Candidate{Turned: turned, Distance: distance, Detail: detailFor(distance) != remote.detail})
-		world.candidateIds = append(world.candidateIds, id)
-	}
-	for _, index := range world.chooser.Choose(world.candidates, turnsPerFrame) {
-		id := world.candidateIds[index]
-		remote, player := world.remotes[id], state.Remotes[id]
-		remote.rotation = player.Shown.Rotation
-		if detail := detailFor(world.candidates[index].Distance); detail != remote.detail {
-			remote.detail = detail
-			remote.node.Mesh = ownCopy(world.shipMesh(player.Player.Ship.Id, player.Player.Ship.Layers, detail))
-		}
-	}
-	for id, remote := range world.remotes {
-		player := state.Remotes[id]
-		if remote.node.Hidden {
-			continue
-		}
-		// Where it is now, turned as its light was last worked out: a few frames late at most.
-		place(remote.node, transformOf(player.Shown.Position, remote.rotation, player.Player.Scale))
+		node.Hidden = false
+		node.Mesh = world.shipMesh(player.Player.Ship.Id, player.Player.Ship.Layers, detailFor(distance))
+		node.Transform = transformOf(player.Shown.Position, player.Shown.Rotation, player.Player.Scale)
 	}
 }
 
@@ -210,14 +174,14 @@ func (world *world) reuseOrAddNode() *scene.Node {
 			return node
 		}
 	}
-	node := &scene.Node{Name: "remote"}
+	node := &scene.Node{Name: "remote", Moving: true}
 	world.scene.Nodes = append(world.scene.Nodes, node)
 	return node
 }
 
 func (world *world) inUse(candidate *scene.Node) bool {
-	for _, remote := range world.remotes {
-		if remote.node == candidate {
+	for _, node := range world.remotes {
+		if node == candidate {
 			return true
 		}
 	}
@@ -226,22 +190,19 @@ func (world *world) inUse(candidate *scene.Node) bool {
 
 func (world *world) showBullets(state *game.Game) {
 	shown := 0
-	place := func(bullets []game.Bullet, mesh *scene.Mesh) {
+	show := func(bullets []game.Bullet, mesh *scene.Mesh) {
 		for _, bullet := range bullets {
 			if shown == len(world.bullets) {
 				return
 			}
 			node := world.bullets[shown]
-			node.Hidden = false
-			if node.Mesh.Colors[0] != mesh.Colors[0] { // the other colour: same shape
-				node.Mesh.Colors, node.Mesh.Dirty = mesh.Colors, true
-			}
-			place(node, transformOf(bullet.Position, flight.NoRotation, 1))
+			node.Hidden, node.Mesh = false, mesh
+			node.Transform = transformOf(bullet.Position, flight.NoRotation, 1)
 			shown++
 		}
 	}
-	place(state.Bullets, world.ownBullet)
-	place(state.Others, world.otherBullet)
+	show(state.Bullets, world.ownBullet)
+	show(state.Others, world.otherBullet)
 	for _, node := range world.bullets[shown:] {
 		node.Hidden = true
 	}
@@ -263,7 +224,7 @@ const reticleDistance = 60
 func (world *world) placeReticle(state *game.Game) {
 	world.reticle.Hidden = !state.Alive
 	ahead := state.Own.Position.Add(state.Own.Rotation.Apply(flight.Forward).Times(reticleDistance))
-	place(world.reticle, transformOf(ahead, state.Own.Rotation, 1))
+	world.reticle.Transform = transformOf(ahead, state.Own.Rotation, 1)
 }
 
 // reticle is a cross with a gap in the middle, drawn in the plane facing the ship.
@@ -285,51 +246,12 @@ func vectorOf(vector flight.Vector, w float32) graphics.Vec4 {
 	return graphics.Vec4{float32(vector[0]), float32(vector[1]), float32(vector[2]), w}
 }
 
-// ownCopy is a mesh of its own for one node, sharing the vertices. go-renderer's 3DS backend
-// bakes the light into a mesh once for every way it is turned and keeps each of those until the
-// mesh stops being drawn; a ship that keeps turning would fill the GPU's memory with them. With a
-// mesh per node, place can drop the old bake whenever the node turns.
-// TODO(akrck02): let ctr keep a few turns per mesh and reuse the oldest, and drop this.
-func ownCopy(mesh *scene.Mesh) *scene.Mesh {
-	copied := *mesh
-	copied.GPU = nil
-	return &copied
-}
-
-// place moves a node, and has its mesh baked again when it turned (see ownCopy).
-func place(node *scene.Node, transform graphics.Mat4) {
-	for _, index := range [9]int{0, 1, 2, 4, 5, 6, 8, 9, 10} {
-		if node.Transform[index] != transform[index] {
-			node.Mesh.Dirty = true
-			break
-		}
-	}
-	node.Transform = transform
-}
-
 func transformOf(position flight.Vector, rotation flight.Rotation, scale float64) graphics.Mat4 {
 	return graphics.FromTranslationRotationScale(
 		graphics.Vec4{float32(position[0]), float32(position[1]), float32(position[2]), 1},
 		graphics.Vec4{float32(rotation[0]), float32(rotation[1]), float32(rotation[2]), float32(rotation[3])},
 		graphics.Vec4{float32(scale), float32(scale), float32(scale), 0},
 	)
-}
-
-// stillGround is a single point-sized triangle marked as ground, which never changes. go-renderer's
-// planner measures the meshes under water for the sea floor's light: the ground ones if there are
-// any, else every lit mesh, again whenever one of them changed. Ships change their bake all the
-// time, so without this it measured every ship's vertices every frame (70 ms with 15 ships in the
-// emulator), for water this scene doesn't have.
-// TODO(akrck02): have sceneplan skip the sea floor when the scene has no water, and drop this.
-func stillGround() *scene.Mesh {
-	return &scene.Mesh{
-		Name:      "still ground",
-		Positions: []float32{0, 0, 0, 0, 0, 0, 0, 0, 0},
-		Normals:   []float32{0, 1, 0, 0, 1, 0, 0, 1, 0},
-		Colors:    []float32{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-		Material:  &scene.Material{Name: "still ground", Kind: scene.KindLit, BaseColor: graphics.Vec4{1, 1, 1, 1}},
-		Ground:    true,
-	}
 }
 
 // dust scatters small boxes through the world.

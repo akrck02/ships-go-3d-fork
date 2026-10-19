@@ -77,12 +77,13 @@ console).
 - [x] T13 — fixes from the review: connect and send time out (go-3ds `network`), websocket frames out of order refused, pending bounded and reused, handshake refusal closes, header injection refused, error codes kept through wrapping, `protocol.unreadable-message`, the C-stick service released · tests: `TestFramesOutOfOrderAreRefused`, `TestARefusedHandshakeClosesTheClient`, `TestHeadersCannotCarryNewLines`, `TestTheTransportsErrorIsKept`, `TestBrokenJsonHasItsCode`, echo against an unreachable address in Azahar
 - [x] T14 — many players: measured with a swarm of bots in Azahar (5 / 15 / 30 / 60 bots: 10 / 3 / under 3 / — fps before, 56 / 32 / 25 / 14 after). The costs were go-renderer's sea-floor measure redone over every lit mesh whenever one changed (a still ground mesh makes it skip), every turning ship baked again every frame (now at most two a frame, the most visible first: `client3ds/turning`), fine detail on every ship (coarse beyond 60 units: `ship.Coarse`), bullets baked again when their node changed hands (now cubes with no turn), and snapshots decoded twice · tests: `TestNoMoreThanTheBudgetIsChosen`, `TestTheNearestAndMostTurnedGoFirst`, `TestChoosingAllocatesNothingOnceWarm`, `TestTheCoarseDetailHasFarFewerTriangles`, `TestASnapshotWithTypeLastIsStillRead`
 - [x] T15 — only the ships the camera can see are drawn and get a mesh (a cone round the screen's corners, up to 700 units: `chase.View.Sees`); the radar still shows them all. 60 bots: 22 fps facing them, 37 with them behind · test: `TestTheViewSeesAheadAndNotBehind`
+- [x] T16 — snapshots read by hand, allocating nothing (`protocol.SnapshotReader`); and in go-renderer (local branch `feature/3ds-moving-light`): `scene.Node.Moving` lights a node on the GPU instead of baking it at every turn, at most four bakes a mesh, no seabed without water. The client marks ships and the aim cross Moving and drops its workarounds (copies of meshes per node, the budget of bakes, the still ground). 57 fps with 5, 15, 30 and 60 bots in the emulator · tests: `TestTheReaderAgreesWithEncodingJson`, `TestReadingASnapshotAllocatesNothingOnceWarm`, `TestASceneWithoutWaterHasNoSeabed`, `TestTheLeastRecentlyDrawnVariantIsTheOneReplaced` (ctr, in Azahar)
 - [ ] T10 — TLS and login · decided then · R8 · test: join against the HTTPS dev server
 - [x] T11 — check the server is untouched · R9 · test: `go test ./...`
 
 ## Result
 
-Released as prereleases `demo-1` … `demo-11` in the author's private copy (akrck02/ships-go-3d),
+Released as prereleases `demo-1` … `demo-12` in the author's private copy (akrck02/ships-go-3d),
 built from `feature/3ds-client`. Tested in the Azahar emulator against the server and a bot on
 the PC, and the author has joined a game from the console (server log, 2026-10-18 22:35).
 
@@ -95,9 +96,9 @@ speed, hits and the respawn countdown; START opens the game, figures, settings a
 Changed from the plan: sockets, the keyboard, START handling and the C-stick live in go-3ds
 (`network`, `keyboard`, `app`), on its local branch `feature/network`, which is not pushed:
 building the client needs that copy next to this repository (`replace` in `client3ds/go.mod`).
-go-renderer's `ctr` keeps one baked copy of a mesh per orientation, forever, so turning ships
-filled the GPU memory; `cmd/ships3ds` gives each node its own mesh and drops the bake when it
-turns (TODO in `world.go`).
+go-renderer's `ctr` kept one baked copy of a mesh per orientation, forever, so turning ships
+filled the GPU memory, and baking them again was most of a frame; fixed in go-renderer on a local
+branch, `feature/3ds-moving-light` (not pushed), which `client3ds/go.mod` points at.
 
 Measured in the emulator with up to 60 bots (T14): the server handles 60 without errors (4,400 messages and 12.7 MB a second); the client draws 14 frames a second there, 25 with 30 bots and 56 with 5. On the console the numbers will differ: the Figures tab shows them.
 
