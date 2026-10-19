@@ -17,15 +17,16 @@ import (
 // own, lit as space is, drawn by a renderer of its own as the radar is.
 const (
 	previewRadius         = 7
-	previewTilt           = 0.35 // radians, tipped toward the camera
 	previewTurnsPerSecond = 0.12
 )
 
+// The camera looks at the ship a little from above, where a design shows best: its top, its
+// cockpit and its wings, rather than its belly.
 var (
 	previewPosition = flight.Vector{0, 0, 22}
 	previewCamera   = models.Camera{
-		Position: graphics.Vec4{0, 0, 0, 1},
-		Target:   graphics.Vec4{0, 0, 1, 1},
+		Position: graphics.Vec4{0, 8, 0, 1},
+		Target:   graphics.Vec4{0, -0.5, 22, 1},
 		Up:       graphics.Vec4{0, 1, 0, 0},
 		Near:     1, Far: 100,
 	}
@@ -57,7 +58,7 @@ func newPreviewScene(screen *ctr.Screen) (*previewScene, error) {
 func (preview *previewScene) paint(surface ctr.Surface, mesh *scene.Mesh, scale, now float64) {
 	preview.ship.Hidden = mesh == nil
 	if mesh != nil {
-		turn := flight.FromEulerXYZ(previewTilt, now*previewTurnsPerSecond*2*math.Pi, 0)
+		turn := flight.FromEulerXYZ(0, now*previewTurnsPerSecond*2*math.Pi, 0)
 		preview.ship.Mesh = mesh
 		preview.ship.Transform = transformOf(previewPosition, turn, scale)
 	}

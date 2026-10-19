@@ -5,8 +5,12 @@ A client for the game server in this repository, for the New Nintendo 3DS (homeb
 [docs/proposals/1-nintendo-3ds-client.md](../docs/proposals/1-nintendo-3ds-client.md).
 
 ```bash
-tinygo build -target=nintendo3ds -ldflags "-X main.server=192.168.1.20:3000" -o ships3ds.3dsx ./cmd/ships3ds
+tinygo build -target=nintendo3ds -ldflags "-X runtime.heapMegabytes=64" -o ships3ds.3dsx ./cmd/ships3ds
 ```
+
+`runtime.heapMegabytes=64` leaves C its share of the console's memory: without it TinyGo takes all
+it can, and the socket service doesn't find the megabyte it needs. `-X main.server=…` starts with
+another server than the real one.
 
 It needs [TinyGo for 3DS](https://github.com/akrck02/tinygo-3ds) and devkitPro's libraries, and
 local copies of go-3ds (branch `feature/network`) and go-renderer (branch

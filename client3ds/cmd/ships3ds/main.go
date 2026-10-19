@@ -43,13 +43,19 @@ var (
 const websocketPath = "/ws"
 
 func main() {
+	// The socket service wants a megabyte in one piece: asked for first, before the fonts, the
+	// painters and the scenes break C's memory up.
+	if err := network.Start(); err != nil {
+		println(err.Error()) // the debug log; entering the server says so again
+	}
 	screen, err := ctr.Open()
 	if err != nil {
 		println(err.Error())
 		return
 	}
 	defer screen.Close()
-	panel, err := bottom.New(bottom.Theme())
+	usePixelFonts()
+	panel, err := bottom.New(spaceTheme())
 	if err != nil {
 		println(err.Error())
 		return
@@ -69,7 +75,7 @@ func main() {
 		println(err.Error())
 		return
 	}
-	title, err := newTopTitle(panel.Screen(), bottom.Theme())
+	title, err := newTopTitle(panel.Screen(), spaceTheme())
 	if err != nil {
 		println(err.Error())
 		return
@@ -233,8 +239,7 @@ func (session *session) press(frame app.Frame) bool {
 	case enteringScreen:
 		return true
 	case shipScreen:
-		circleX, _ := frame.Reading.Circle()
-		session.pressOnShipScreen(pressed, circleX)
+		session.pressOnShipScreen(pressed, frame.Reading)
 		return true
 	}
 	if pressed&ctr.ButtonStart != 0 {

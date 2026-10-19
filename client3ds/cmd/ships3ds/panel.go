@@ -16,12 +16,6 @@ import (
 // boldWeight is the heavy text of titles and names.
 const boldWeight = draw2d.Bold
 
-// Sizes on the touch screen, in pixels.
-const (
-	promptSize   = 24 // the title's invitation to start
-	shipNameSize = 24 // the chosen ship's name between its arrows
-)
-
 // build lays out the touch screen for what it shows now.
 func (session *session) build(context *ui.Context) {
 	switch {
@@ -65,7 +59,7 @@ func centred(context *ui.Context, content func()) {
 // buildTitle is the first screen's touch screen: how to go on; the name is on the top screen.
 func (session *session) buildTitle(context *ui.Context) {
 	centred(context, func() {
-		context.Text("Touch the screen", ui.TextStyle{Size: promptSize, Weight: boldWeight})
+		context.Text("Touch the screen", ui.TextStyle{Size: bigSize, Weight: boldWeight})
 		context.Caption("or press A to start")
 	})
 }
@@ -92,16 +86,13 @@ func (session *session) buildShipChoice(context *ui.Context) {
 	layout := ui.Layout{Direction: ui.Vertical, Width: ui.Fixed(ctr.BottomWidth), Height: ui.Fixed(ctr.BottomHeight), AlignX: ui.Center,
 		Padding: ui.Padding{Top: shipChoiceMargin, Bottom: shipChoiceMargin}, Gap: 4}
 	context.Box(layout, func() {
-		context.Row(func() {
-			if context.IconButton("chevron-left", "") {
-				session.previousShip()
-			}
-			context.Box(ui.Layout{Width: ui.Fixed(shipNameWidth), AlignX: ui.Center}, func() {
-				context.Text(shipLabel(session.ships[session.ship]), ui.TextStyle{Size: shipNameSize, Weight: boldWeight})
-			})
-			if context.IconButton("chevron-right", "") {
-				session.nextShip()
-			}
+		// The name between two marks that say the cross (or a touch on them) changes it: a row
+		// as wide as the screen, its content centred.
+		row := ui.Layout{Direction: ui.Horizontal, Width: ui.Fixed(ctr.BottomWidth), AlignX: ui.Center, AlignY: ui.Center, Gap: shipMarkGap}
+		context.Box(row, func() {
+			shipMark(context, "chevron-left")
+			context.Text(shipLabel(session.ships[session.ship]), ui.TextStyle{Size: bigSize, Weight: boldWeight})
+			shipMark(context, "chevron-right")
 		})
 		context.Caption(strconv.Itoa(session.ship+1) + " of " + strconv.Itoa(len(session.ships)) + "  ·  " + session.playerName())
 		if session.status != "" {
@@ -132,8 +123,17 @@ func (session *session) buildRestartWarning(context *ui.Context) {
 	})
 }
 
-// shipNameWidth is the room the chosen ship's name has between its arrows, in pixels.
-const shipNameWidth = 170
+// shipMarkGap is the room between the ship's name and its marks, in pixels.
+const shipMarkGap = 10
+
+// shipMark is a mark beside the ship's name, not a button: the cross changes the ship, and so
+// does a touch on either side of the name (pressOnShipScreen).
+func shipMark(context *ui.Context, icon string) {
+	context.IconSized(icon, shipMarkSize, context.Theme.Primary)
+}
+
+// shipMarkSize is the marks' size, in pixels.
+const shipMarkSize = 16
 
 // shipNameCharacters is how much of a ship's name fits between its arrows.
 const shipNameCharacters = 11

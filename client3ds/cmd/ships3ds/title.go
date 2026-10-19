@@ -35,7 +35,6 @@ const (
 	titleHeight       = -4
 	titleRollsPerLoop = 1
 	titleShipScale    = 1.2
-	titleSize         = 46 // the title's letters, in pixels
 )
 
 // titleCamera looks straight ahead, +Z, from the origin.

@@ -46,11 +46,12 @@ func controlsOf(frame app.Frame, choices profile.Settings, tilted tilt.Tilt) fli
 	return controls
 }
 
-// tiltOf adds a frame's turning of the console up, on the gyroscope's axes: its pitch tips the
-// top screen, its roll turns the console like a wheel.
-// TODO(akrck02): check on the console that both signs feel right; the emulator has no gyroscope.
+// tiltOf adds a frame's turning of the console up. libctru's names for the gyroscope's axes are
+// the other way round from how the console is held to play: what it calls roll tips the top
+// screen (toward the player is negative), what it calls pitch turns the console like a wheel.
+// Found on a New 3DS XL: before this, tilting left lowered the nose and tipping up turned left.
 func tiltOf(tilted *tilt.Tilt, frame app.Frame) {
-	tilted.Turn(frame.Gyroscope.Pitch, frame.Gyroscope.Roll, frame.Seconds)
+	tilted.Turn(-frame.Gyroscope.Roll, frame.Gyroscope.Pitch, frame.Seconds)
 }
 
 // controlLines are what each control does, for the Controls tab.

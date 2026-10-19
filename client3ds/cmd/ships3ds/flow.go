@@ -159,9 +159,13 @@ func (session *session) offer(ships account.Ships) {
 // circleSide is how far to one side the circle pad goes before it counts as a press.
 const circleSide = 0.6
 
+// shipRowHeight is how far down the touch screen the ship's name and its marks reach, in pixels.
+const shipRowHeight = 56
+
 // pressOnShipScreen goes through the ships with the cross or the circle pad, flies the chosen one
 // with A, and opens the options with START.
-func (session *session) pressOnShipScreen(pressed ctr.Buttons, circleX float64) {
+func (session *session) pressOnShipScreen(pressed ctr.Buttons, reading ctr.Reading) {
+	circleX, _ := reading.Circle()
 	side := 0
 	if circleX > circleSide {
 		side = 1
@@ -176,10 +180,14 @@ func (session *session) pressOnShipScreen(pressed ctr.Buttons, circleX float64) 
 	if session.menuOpen {
 		return
 	}
+	// A touch on the name's row: its left third goes back, its right third on.
+	touchedRow := pressed&ctr.ButtonTouch != 0 && reading.TouchY < shipRowHeight
+	touchedLeft := touchedRow && reading.TouchX < ctr.BottomWidth/3
+	touchedRight := touchedRow && reading.TouchX > ctr.BottomWidth*2/3
 	switch {
-	case pressed&ctr.ButtonLeft != 0 || pushed && side < 0:
+	case pressed&ctr.ButtonLeft != 0 || pushed && side < 0 || touchedLeft:
 		session.previousShip()
-	case pressed&ctr.ButtonRight != 0 || pushed && side > 0:
+	case pressed&ctr.ButtonRight != 0 || pushed && side > 0 || touchedRight:
 		session.nextShip()
 	case pressed&ctr.ButtonA != 0:
 		session.connect()
