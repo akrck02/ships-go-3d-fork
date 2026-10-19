@@ -14,6 +14,9 @@ import (
 // boldWeight is the heavy text of titles and names.
 const boldWeight = draw2d.Bold
 
+// shipNameWidth is the room the chosen ship's name has between its arrows, in pixels.
+const shipNameWidth = 96
+
 // titleSize is the title screen's heading, in pixels.
 const titleSize = 40
 
@@ -95,14 +98,19 @@ func (session *session) buildServer(context *ui.Context) {
 			session.typing = true
 		}
 	})
-	names := make([]string, len(guestShips))
-	for index, ship := range guestShips {
-		names[index] = ship.name
-	}
+	// Arrows rather than a drop-down list: eight ships don't fit below it on the touch screen.
 	context.Row(func() {
 		context.Text("Ship", ui.TextStyle{})
 		context.Spacer()
-		context.Select("ship", &session.ship, names)
+		if context.IconButton("chevron-left", "") {
+			session.ship = (session.ship + len(guestShips) - 1) % len(guestShips)
+		}
+		context.Box(ui.Layout{Width: ui.Fixed(shipNameWidth), AlignX: ui.Center}, func() {
+			context.Text(guestShips[session.ship].name, ui.TextStyle{Weight: boldWeight})
+		})
+		if context.IconButton("chevron-right", "") {
+			session.ship = (session.ship + 1) % len(guestShips)
+		}
 	})
 	if context.IconButton("plug", "Connect") {
 		session.connect()

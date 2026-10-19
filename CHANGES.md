@@ -1,5 +1,11 @@
 CHANGES
 =======
+Unreleased
+------------------
+Five new built-in ships, so guests have more to choose from: Kestrel (a
+fighter), Mule (a freighter), Lancer (an interceptor), Bulwark (a gunship) and
+Wisp (a scout).
+
 Version 0.5.0 - 2026-10-19
 ------------------
 Messages for players in Spanish and Basque (Euskara), as well as English.

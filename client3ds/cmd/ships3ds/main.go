@@ -318,6 +318,11 @@ var guestShips = []struct{ id, name string }{
 	{"default:arrow", "Arrow"},
 	{"default:hammer", "Hammer"},
 	{"default:saucer", "Saucer"},
+	{"default:kestrel", "Kestrel"},
+	{"default:mule", "Mule"},
+	{"default:lancer", "Lancer"},
+	{"default:bulwark", "Bulwark"},
+	{"default:wisp", "Wisp"},
 }
 
 // options are the player's choices in the Settings tab.
