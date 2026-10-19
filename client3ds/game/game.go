@@ -66,6 +66,9 @@ type Game struct {
 	EdgePoint              flight.Vector
 	touchingEdge           bool
 
+	events, taken []Event // what happened, for TakeEvents
+	killedBy      string
+
 	diedAt    float64
 	lastState float64
 	lastFire  float64
@@ -108,6 +111,7 @@ func (game *Game) Handle(message protocol.Incoming, states []protocol.PlayerStat
 		game.Others = append(game.Others, Bullet{Id: message.Id, Position: message.Position, Direction: message.Direction, expiresAt: now + game.bulletSeconds()})
 	case protocol.TypeDamage:
 		game.setLife(message.Target, message.Life)
+		game.note(ShipHit, message.Target, now)
 		if message.Target == game.Id {
 			game.HitAt = now
 		}
@@ -151,7 +155,12 @@ func (game *Game) setLife(target string, life float64) {
 
 // died marks target as destroyed and gives from the kill.
 func (game *Game) died(target, from string, now float64) {
+	game.note(ShipDestroyed, target, now)
 	if target == game.Id {
+		game.killedBy = ""
+		if remote, found := game.Remotes[from]; found {
+			game.killedBy = remote.Player.Name
+		}
 		game.Alive, game.diedAt = false, now
 		game.Player.Deaths++
 		game.Player.Life = 0

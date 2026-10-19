@@ -134,3 +134,23 @@ func TestRunningIntoTheEdgeIsNotedOnce(t *testing.T) {
 		t.Fatalf("scraping along the edge: hit %v, touch %v", game.EdgeHitAt, game.EdgeTouchAt)
 	}
 }
+
+func TestHitsAndDeathsAreEventsWhereTheShipIs(t *testing.T) {
+	game := welcomed(50)
+	game.Remotes["them"].Player.Name = "Rival"
+	game.Handle(protocol.Incoming{Type: protocol.TypeDamage, Target: "them", Life: 5}, nil, 1)
+	game.Handle(protocol.Incoming{Type: protocol.TypeDied, Target: "me", From: "them"}, nil, 2)
+	events := game.TakeEvents()
+	if len(events) != 2 || events[0].Kind != ShipHit || events[0].Position[2] != 50 || events[0].Own {
+		t.Fatalf("got %+v", events)
+	}
+	if events[1].Kind != ShipDestroyed || !events[1].Own || events[1].At != 2 {
+		t.Fatalf("got %+v", events[1])
+	}
+	if game.KilledBy() != "Rival" {
+		t.Fatalf("killed by %q", game.KilledBy())
+	}
+	if len(game.TakeEvents()) != 0 {
+		t.Fatal("events came back twice")
+	}
+}

@@ -4,6 +4,7 @@ package main
 
 import (
 	"errors"
+	"math"
 	"strconv"
 
 	"github.com/akrck02/go-3ds/keyboard"
@@ -219,6 +220,10 @@ func (session *session) topHeading() (heading, caption string) {
 	switch session.screen {
 	case titleScreen, enteringScreen:
 		return "Ships 3D", "for Nintendo 3DS"
+	case gameScreen:
+		if session.game.Welcomed && !session.game.Alive {
+			return "Destroyed", session.deathCaption()
+		}
 	case shipScreen:
 		choice := session.ships[session.ship]
 		caption = "Built-in ship"
@@ -342,4 +347,16 @@ func (session *session) keepLog() {
 			" B, skipped " + strconv.Itoa(session.skipped) + ", players " + strconv.Itoa(shown.Players))
 		session.skipped = 0
 	}
+}
+
+// deathCaption says who destroyed us and when we fly again.
+func (session *session) deathCaption() string {
+	caption := ""
+	if killer := session.game.KilledBy(); killer != "" {
+		caption = "by " + killer + "  ·  "
+	}
+	if session.game.CanRespawn(session.now) {
+		return caption + "A to fly again"
+	}
+	return caption + "back in " + strconv.Itoa(int(math.Ceil(session.game.RespawnIn(session.now)))) + " s"
 }

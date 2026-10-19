@@ -55,6 +55,7 @@ type world struct {
 	edges                  [][2]flight.Vector // the edge's lines, for its glow
 	edgeEye                flight.Vector      // where the camera was when the edge's widths were worked out
 	crash                  *crash
+	bursts                 *bursts
 	now                    float64     // seconds, this frame
 	title                  *scene.Node // the ship that crosses the title screen, or turns on the ship screen
 	titleMesh              *scene.Mesh // the title's ship
@@ -68,6 +69,7 @@ func newWorld() *world {
 	world.sky = skyNode()
 	world.edge = &scene.Node{Name: "world edge", Transform: graphics.Identity(), Hidden: true}
 	world.crash = newCrash(space)
+	world.bursts = newBursts(space)
 	world.title = titleShip()
 	world.titleMesh = world.title.Mesh
 	space.Nodes = append(space.Nodes, world.sky, world.edge, world.title)
@@ -119,6 +121,10 @@ func (world *world) show(state *game.Game, view *models.Camera, seconds, now flo
 	world.placeReticle(state)
 	world.placeSpace(state)
 	world.crash.show(state, world.edges, world.view.Eye, now, seconds)
+	for _, event := range state.TakeEvents() {
+		world.bursts.start(event)
+	}
+	world.bursts.show(now, seconds)
 }
 
 // placeSpace keeps the sky around the camera, the dust around the ship, and the world's edge, once
@@ -246,9 +252,14 @@ func (world *world) showBullets(state *game.Game) {
 
 func (world *world) placeCamera(state *game.Game, view *models.Camera, seconds float64) {
 	chased := world.camera.Follow(state.Own, state.Settings.ShipRadius, seconds)
-	if state.EdgeHitAt > 0 {
-		// The crash shakes the camera across and up and down, as the ship sees them.
+	if state.EdgeHitAt > 0 || state.HitAt > 0 {
+		// A crash, or a bullet in our ship, shakes the camera across and up and down, as the
+		// ship sees them; a bullet less.
 		across, upAndDown := impact.Shake(world.now - state.EdgeHitAt)
+		if state.HitAt > state.EdgeHitAt {
+			across, upAndDown = impact.Shake(world.now - state.HitAt)
+			across, upAndDown = across*ownHitShakeShare, upAndDown*ownHitShakeShare
+		}
 		shake := state.Own.Rotation.Apply(flight.Vector{across, upAndDown, 0})
 		chased.Eye, chased.Target = chased.Eye.Add(shake), chased.Target.Add(shake)
 	}
