@@ -33,17 +33,37 @@ const (
 	labelPixels   = 8  // Silkscreen and Press Start 2P, crisp at multiples of 8
 )
 
-// pixel is the windows' palette, "a blue moon": ice-blue windows with a white edge on a night
-// blue, deep blue ink, and a sky blue (gold, the accent) for what is chosen.
+// pixel is the windows' palette, "a blue moon": windows of night-blue glass with a pale blue
+// edge, the stars and the nebula showing through, starlight ink, and a sky blue (gold, the
+// accent) for what is chosen.
 var pixel = struct {
 	screen, window, tab, frame, shadow, ink, soft, gold, goldLight, chosen, glow, danger, good, star draw2d.Color
 }{
-	screen: draw2d.Hex("#14284a"), window: draw2d.Hex("#e4eefa"), tab: draw2d.Hex("#cddcf0"),
-	frame: draw2d.Hex("#f6faff"), shadow: draw2d.Hex("#060e1f"), ink: draw2d.Hex("#243a55"),
-	soft: draw2d.Hex("#5f7a9a"), gold: draw2d.Hex("#3d8fe0"), goldLight: draw2d.Hex("#9cc8f2"),
-	chosen: draw2d.Hex("#f6faff"), glow: draw2d.Hex("#3d8fe026"), danger: draw2d.Hex("#d9485f"),
-	good: draw2d.Hex("#4fa8e0"), star: draw2d.Hex("#eaf4ff"),
+	screen: draw2d.Hex("#0a1430"), window: draw2d.Hex("#0e1c4290"), tab: draw2d.Hex("#24406e"),
+	frame: draw2d.Hex("#9cc8f2"), shadow: draw2d.Hex("#02060fb0"), ink: draw2d.Hex("#eaf4ff"),
+	soft: draw2d.Hex("#9fb6d6"), gold: draw2d.Hex("#5fb0ff"), goldLight: draw2d.Hex("#cfe6ff"),
+	chosen: draw2d.Hex("#2a4a80"), glow: draw2d.Hex("#9cc8f233"), danger: draw2d.Hex("#ff7088"),
+	good: draw2d.Hex("#5fb0ff"), star: draw2d.Hex("#eaf4ff"),
 }
+
+// The nebula and the moon behind the menus: soft clouds of colour and a crescent, in pixels.
+var nebula = []struct {
+	x, y, size float32
+	colour     draw2d.Color
+}{
+	{60, 40, 220, draw2d.Hex("#5b3fa833")}, {250, 150, 260, draw2d.Hex("#2f6fd033")},
+	{140, 210, 160, draw2d.Hex("#c0508a22")}, {300, 20, 120, draw2d.Hex("#4fc3f722")},
+}
+
+const (
+	moonX, moonY, moonSize = 262, 168, 96
+	moonShadowShift        = 18
+)
+
+var (
+	moonLight  = draw2d.Hex("#dfe9f8")
+	moonCrater = draw2d.Hex("#c3d2ea")
+)
 
 // fullScreen is the touch screen's area.
 var fullScreen = draw2d.Rect{Width: ctr.BottomWidth, Height: ctr.BottomHeight}
@@ -76,7 +96,7 @@ func window(drawing *draw2d.List, area draw2d.Rect) {
 func tab(drawing *draw2d.List, area draw2d.Rect, name string, open bool) {
 	fill, ink := pixel.tab, pixel.soft
 	if open {
-		fill, ink = pixel.gold, pixel.frame
+		fill, ink = pixel.gold, pixel.screen
 	}
 	stepped(drawing, area, 1, fill)
 	drawing.Text(name, area.X+tabPadding, area.Y+area.Height-5, labelPixels, draw2d.Mono, ink)
@@ -138,9 +158,21 @@ const (
 	menuStarTwinkling = 3 // radians a second of a star's twinkle
 )
 
-// starfield fills the screen with the night and stars drifting left, the near ones faster.
+// starfield fills the screen with the night: a nebula, a crescent moon and stars drifting
+// left, the near ones faster.
 func starfield(drawing *draw2d.List, now float64) {
 	drawing.Rectangle(fullScreen, 0, pixel.screen, draw2d.Color{}, 0)
+	for _, cloud := range nebula {
+		for ring := float32(1); ring >= 0.4; ring -= 0.3 {
+			size := cloud.size * ring
+			drawing.Rectangle(draw2d.Rect{X: cloud.x - size/2, Y: cloud.y - size/2, Width: size, Height: size}, size/2, cloud.colour, draw2d.Color{}, 0)
+		}
+	}
+	drawing.Rectangle(draw2d.Rect{X: moonX, Y: moonY, Width: moonSize, Height: moonSize}, moonSize/2, moonLight, draw2d.Color{}, 0)
+	drawing.Rectangle(draw2d.Rect{X: moonX + 20, Y: moonY + 22, Width: 18, Height: 12}, 6, moonCrater, draw2d.Color{}, 0)
+	drawing.Rectangle(draw2d.Rect{X: moonX + 46, Y: moonY + 50, Width: 12, Height: 8}, 4, moonCrater, draw2d.Color{}, 0)
+	shade := draw2d.Rect{X: moonX - moonShadowShift, Y: moonY - moonShadowShift/2, Width: moonSize, Height: moonSize}
+	drawing.Rectangle(shade, moonSize/2, pixel.screen, draw2d.Color{}, 0) // the dark side cuts a crescent
 	for index := range menuStarCount {
 		layer := index % menuStarLayers
 		depth := float32(menuStarLayers-layer) / menuStarLayers // 1 is the nearest
