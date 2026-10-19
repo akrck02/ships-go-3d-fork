@@ -25,7 +25,9 @@ const (
 	starSize         = 22 // world units at skyRadius: about a pixel and a half, as the browser's
 	starSeed         = 11
 	planetDistance   = skyRadius * 0.8
-	edgeLineWidth    = 3
+	edgeWidthShare   = 0.002 // three world units at the edge's far side, 1,500 away
+	edgeLeastWidth   = 0.02
+	edgeRebuildGap   = 50  // world units the camera moves before the edge's widths are worked out again
 	edgeSubdivisions = 2   // the browser's icosahedron is finer: this keeps it to a few thousand triangles
 	dustCell         = 300 // the browser's dust box
 	dustPerCell      = 300
@@ -99,13 +101,24 @@ func stars() *scene.Mesh {
 
 // worldEdge is the edge of the world as a faint grid: the edges of a subdivided icosahedron of the
 // world's radius, as the browser draws it in wireframe.
-func worldEdge(radius float64) *scene.Mesh {
-	mesh := &scene.Mesh{Name: "world edge", Material: unlit()}
-	for _, edge := range icosphereEdges(edgeSubdivisions) {
-		from, to := edge[0].Times(radius), edge[1].Times(radius)
-		appendLine(mesh, from, to, edgeLineWidth, edgeColour)
+// Each line is as wide as its distance from the camera asks, about a pixel, as the browser's
+// lines are: a fixed width would be a wide band where the camera passes close to the edge.
+func worldEdge(mesh *scene.Mesh, edges [][2]flight.Vector, eye flight.Vector) {
+	mesh.Positions, mesh.Normals, mesh.Colors = mesh.Positions[:0], mesh.Normals[:0], mesh.Colors[:0]
+	for _, edge := range edges {
+		width := max(edgeLeastWidth, nearestDistance(eye, edge[0], edge[1])*edgeWidthShare)
+		appendLine(mesh, edge[0], edge[1], width, edgeColour)
 	}
-	return mesh
+	mesh.Dirty = true
+}
+
+// edgeLines are the world's edge's lines at its radius.
+func edgeLines(radius float64) [][2]flight.Vector {
+	edges := icosphereEdges(edgeSubdivisions)
+	for index := range edges {
+		edges[index] = [2]flight.Vector{edges[index][0].Times(radius), edges[index][1].Times(radius)}
+	}
+	return edges
 }
 
 // dustCellMesh is one cell of dust: dustPerCell specks in a box dustCell wide from the origin.

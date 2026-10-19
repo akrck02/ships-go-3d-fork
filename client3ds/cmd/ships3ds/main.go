@@ -93,7 +93,7 @@ func main() {
 		}
 		session.exchange(frame, now)
 		networkTime := time.Since(frameStart)
-		world.show(session.game, &view, frame.Seconds)
+		world.show(session.game, &view, frame.Seconds, now)
 		heading, caption := session.topHeading()
 		switch session.screen {
 		case titleScreen, enteringScreen:

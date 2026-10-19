@@ -60,6 +60,11 @@ type Game struct {
 	// SnapshotAt is when the server's last snapshot arrived, in seconds; HitAt when we were last
 	// hit.
 	SnapshotAt, HitAt float64
+	// EdgeHitAt is when our ship last ran into the world's edge, and EdgeTouchAt when it last
+	// touched it (still scraping along it); EdgePoint is where. Both 0 before any.
+	EdgeHitAt, EdgeTouchAt float64
+	EdgePoint              flight.Vector
+	touchingEdge           bool
 
 	diedAt    float64
 	lastState float64
@@ -190,6 +195,7 @@ func (game *Game) Step(controls flight.Controls, firing, respawning bool, second
 	}
 	if game.Alive {
 		flight.Step(&game.Own, controls, game.Settings.Settings, seconds)
+		game.watchEdge(now)
 		if firing && now-game.lastFire >= float64(game.Settings.FireCooldownMs)/millisecondsPerSecond {
 			game.fire(now)
 		}
@@ -206,6 +212,22 @@ func (game *Game) Step(controls flight.Controls, firing, respawning bool, second
 	game.moveRemotes(seconds, now)
 	game.moveBullets(seconds, now)
 	return game.outgoing
+}
+
+// edgeShare is how close to the world's radius counts as touching its edge: the flight model
+// holds the ship exactly on it.
+const edgeShare = 0.9995
+
+// watchEdge notes when the ship touches the world's edge, and when it runs into it anew.
+func (game *Game) watchEdge(now float64) {
+	touching := game.Settings.WorldRadius > 0 && game.Own.Position.Length() >= game.Settings.WorldRadius*edgeShare
+	if touching {
+		game.EdgeTouchAt, game.EdgePoint = now, game.Own.Position
+		if !game.touchingEdge {
+			game.EdgeHitAt = now
+		}
+	}
+	game.touchingEdge = touching
 }
 
 // fire shoots a bullet along our nose and reports it.

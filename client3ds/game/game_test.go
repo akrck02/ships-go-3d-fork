@@ -120,3 +120,17 @@ func TestTheRespawnCountsDown(t *testing.T) {
 		t.Fatalf("%v seconds left after the delay, want 0", got)
 	}
 }
+
+func TestRunningIntoTheEdgeIsNotedOnce(t *testing.T) {
+	game := welcomed(5000)
+	game.Own.Position = flight.Vector{0, 0, 1499}
+	game.Own.Speed = 80
+	game.Step(flight.Controls{}, false, false, 0.1, 1)
+	if game.EdgeHitAt != 1 || game.EdgePoint[2] < 1499 {
+		t.Fatalf("hit at %v, point %v", game.EdgeHitAt, game.EdgePoint)
+	}
+	game.Step(flight.Controls{}, false, false, 0.1, 1.1)
+	if game.EdgeHitAt != 1 || game.EdgeTouchAt != 1.1 {
+		t.Fatalf("scraping along the edge: hit %v, touch %v", game.EdgeHitAt, game.EdgeTouchAt)
+	}
+}

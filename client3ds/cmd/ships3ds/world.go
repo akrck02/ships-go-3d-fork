@@ -10,6 +10,7 @@ import (
 	"ships3d/client3ds/chase"
 	"ships3d/client3ds/flight"
 	"ships3d/client3ds/game"
+	"ships3d/client3ds/impact"
 	"ships3d/client3ds/protocol"
 	"ships3d/client3ds/ship"
 )
@@ -51,6 +52,10 @@ type world struct {
 	bullets                []*scene.Node
 	view                   chase.View // what the camera saw last, to leave out the ships it can't
 	sky, edge              *scene.Node
+	edges                  [][2]flight.Vector // the edge's lines, for its glow
+	edgeEye                flight.Vector      // where the camera was when the edge's widths were worked out
+	crash                  *crash
+	now                    float64     // seconds, this frame
 	title                  *scene.Node // the ship that crosses the title screen, or turns on the ship screen
 	titleMesh              *scene.Mesh // the title's ship
 	dust                   []*scene.Node
@@ -62,6 +67,7 @@ func newWorld() *world {
 	world := &world{scene: space, ships: map[meshKey]*scene.Mesh{}, remotes: map[string]*scene.Node{}}
 	world.sky = skyNode()
 	world.edge = &scene.Node{Name: "world edge", Transform: graphics.Identity(), Hidden: true}
+	world.crash = newCrash(space)
 	world.title = titleShip()
 	world.titleMesh = world.title.Mesh
 	space.Nodes = append(space.Nodes, world.sky, world.edge, world.title)
@@ -87,8 +93,9 @@ func newWorld() *world {
 }
 
 // show places everything where the game says, and the camera behind our ship.
-func (world *world) show(state *game.Game, view *models.Camera, seconds float64) {
+func (world *world) show(state *game.Game, view *models.Camera, seconds, now float64) {
 	world.title.Hidden = true
+	world.now = now
 	if !state.Welcomed {
 		view.Position, view.Target, view.Up = graphics.Vec4{0, 20, -60, 1}, graphics.Vec4{0, 0, 0, 1}, graphics.Vec4{0, 1, 0, 0}
 		return
@@ -111,6 +118,7 @@ func (world *world) show(state *game.Game, view *models.Camera, seconds float64)
 	world.showBullets(state)
 	world.placeReticle(state)
 	world.placeSpace(state)
+	world.crash.show(state, world.edges, world.view.Eye, now, seconds)
 }
 
 // placeSpace keeps the sky around the camera, the dust around the ship, and the world's edge, once
@@ -119,8 +127,14 @@ func (world *world) placeSpace(state *game.Game) {
 	eye := world.view.Eye
 	world.sky.Transform = graphics.Translate(graphics.Vec4{float32(eye[0]), float32(eye[1]), float32(eye[2]), 0})
 	dustCellsAround(world.dust, state.Own.Position)
-	if world.edge.Mesh == nil && state.Settings.WorldRadius > 0 {
-		world.edge.Mesh, world.edge.Hidden = worldEdge(state.Settings.WorldRadius), false
+	if world.edges == nil && state.Settings.WorldRadius > 0 {
+		world.edges = edgeLines(state.Settings.WorldRadius)
+		world.edge.Mesh = &scene.Mesh{Name: "world edge", Material: unlit()}
+		world.edge.Hidden, world.edgeEye = false, eye.Add(flight.Vector{edgeRebuildGap * 2})
+	}
+	if world.edges != nil && eye.Subtract(world.edgeEye).Length() > edgeRebuildGap {
+		worldEdge(world.edge.Mesh, world.edges, eye)
+		world.edgeEye = eye
 	}
 }
 
@@ -232,6 +246,12 @@ func (world *world) showBullets(state *game.Game) {
 
 func (world *world) placeCamera(state *game.Game, view *models.Camera, seconds float64) {
 	chased := world.camera.Follow(state.Own, state.Settings.ShipRadius, seconds)
+	if state.EdgeHitAt > 0 {
+		// The crash shakes the camera across and up and down, as the ship sees them.
+		across, upAndDown := impact.Shake(world.now - state.EdgeHitAt)
+		shake := state.Own.Rotation.Apply(flight.Vector{across, upAndDown, 0})
+		chased.Eye, chased.Target = chased.Eye.Add(shake), chased.Target.Add(shake)
+	}
 	world.view = chased
 	view.Position = vectorOf(chased.Eye, 1)
 	view.Target = vectorOf(chased.Target, 1)
