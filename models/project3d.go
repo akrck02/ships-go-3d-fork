@@ -4,8 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/url"
 	"regexp"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -40,6 +42,13 @@ var partTypes = map[string]bool{
 	PartTube: true, PartPrism: true, PartFrustum: true,
 }
 
+// Part textures, also mirrored in shipModel.ts. A part without one ("") is
+// plain; the client draws the texture tinted by the part's color.
+var partTextures = map[string]bool{
+	"panels": true, "grid": true, "stripes": true, "carbon": true,
+	"hexagons": true, "worn": true, "camo": true, "windows": true,
+}
+
 // Limits on what a project may contain. They keep a single design small
 // enough to be sent to every player that joins a game, and rendered by a
 // phone. Mirrored in ships-vue-3d's shipModel.ts so the editor can tell the
@@ -52,6 +61,7 @@ const (
 	MaxCoordinate        = 50.0
 	MinScale             = 0.01
 	MaxScale             = 50.0
+	MaxTextureURLLength  = 500
 )
 
 type Vec3 [3]float64
@@ -63,6 +73,13 @@ type Part struct {
 	Rotation Vec3   `json:"rotation" bson:"rotation"`
 	Scale    Vec3   `json:"scale" bson:"scale"`
 	Color    string `json:"color" bson:"color"`
+	// Texture is one of partTextures, or empty for a plain part (and in
+	// ships saved before textures existed).
+	Texture string `json:"texture,omitempty" bson:"texture,omitempty"`
+	// TextureURL is an https image used as the texture instead of a built-in
+	// one (never both). Every player's browser loads it, so only https links
+	// of bounded length are accepted.
+	TextureURL string `json:"textureUrl,omitempty" bson:"textureUrl,omitempty"`
 	// Mirror also renders the part reflected across the ship's X=0 plane,
 	// so a symmetric ship only needs one side designed.
 	Mirror bool `json:"mirror" bson:"mirror"`
@@ -134,6 +151,17 @@ func (part *Part) validate() error {
 	if !colorPattern.MatchString(part.Color) {
 		return fmt.Errorf("invalid color %q", part.Color)
 	}
+	if part.Texture != "" && !partTextures[part.Texture] {
+		return fmt.Errorf("unknown texture %q", part.Texture)
+	}
+	if part.TextureURL != "" {
+		if part.Texture != "" {
+			return errors.New("a part can have a texture or an image, not both")
+		}
+		if !validTextureURL(part.TextureURL) {
+			return fmt.Errorf("image links must start with https:// and be at most %d characters", MaxTextureURLLength)
+		}
+	}
 	for axis := 0; axis < 3; axis++ {
 		if !isFinite(part.Position[axis]) || math.Abs(part.Position[axis]) > MaxCoordinate {
 			return fmt.Errorf("position must be between -%g and %g", MaxCoordinate, MaxCoordinate)
@@ -182,6 +210,21 @@ func (p *Project3d) BoundingRadius() float64 {
 
 func length(v Vec3) float64 {
 	return math.Sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2])
+}
+
+// validTextureURL mirrors isValidTextureUrl in ships-vue-3d's shipModel.ts:
+// https, with a host, no spaces or control characters, bounded length.
+func validTextureURL(link string) bool {
+	if utf8.RuneCountInString(link) > MaxTextureURLLength || !strings.HasPrefix(link, "https://") {
+		return false
+	}
+	for _, r := range link {
+		if unicode.IsSpace(r) || unicode.IsControl(r) {
+			return false
+		}
+	}
+	parsed, err := url.Parse(link)
+	return err == nil && parsed.Scheme == "https" && parsed.Hostname() != ""
 }
 
 func isFinite(f float64) bool {
