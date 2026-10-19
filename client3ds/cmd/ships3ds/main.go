@@ -12,6 +12,8 @@ package main
 
 import (
 	"runtime"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/akrck02/go-3ds/app"
@@ -82,12 +84,16 @@ func main() {
 	}
 
 	session := newSession(loadProfile())
+	session.log = newLogbook()
+	session.log.add("Ships 3D for the 3DS starts; server " + session.profile.Server + ", logged in: " + strconv.FormatBool(session.account.Token != ""))
+	session.log.connectRemote()
 	world := newWorld()
 	start := time.Now()
 	view := models.Camera{Far: cameraFar, Near: cameraNear, FieldOfView: chase.FieldOfView}
 	app.RunWithStart(func(frame app.Frame) bool {
 		frameStart := time.Now()
 		now := frameStart.Sub(start).Seconds()
+		session.now = now
 		if !session.press(frame) {
 			return false
 		}
@@ -170,6 +176,10 @@ type session struct {
 	gyroscope  app.Gyroscope // this frame's, for the Figures tab
 	heapBytes  uint64        // the heap's size, read now and then
 	memoryAt   float64       // when it was read, in seconds
+	log        *logbook
+	logged     string  // the status last written to the log
+	figuresAt  float64 // when figures were last logged
+	skipped    int     // position updates skipped while the network was behind, since the last figures
 }
 
 func newSession(remembered profile.Profile) *session {
@@ -268,6 +278,10 @@ func (session *session) exchange(frame app.Frame, now float64) {
 	if session.client == nil {
 		return
 	}
+	if err := session.connection.Flush(); err != nil {
+		session.leave("Disconnected: " + err.Error())
+		return
+	}
 	messages, err := session.client.Receive()
 	for _, text := range messages {
 		message, states, readErr := session.reader.Read(text)
@@ -276,6 +290,9 @@ func (session *session) exchange(frame app.Frame, now float64) {
 			continue
 		}
 		session.figures.Received(len(text))
+		if message.Type == protocol.TypeError {
+			session.log.add("server says: " + message.Message)
+		}
 		session.game.Handle(message, states, now)
 	}
 	if err != nil {
@@ -322,9 +339,20 @@ func (session *session) scan(now float64) {
 	session.scanner.Update(now, blips)
 }
 
+// stateBacklogBytes is how much may wait to be sent before position updates are skipped: each
+// replaces the one before, so sending a stale one behind a stalled network only adds to the pile.
+const stateBacklogBytes = 2048
+
+// stateStart is how every position update begins (protocol.State).
+const stateStart = `{"type":"state"`
+
 func (session *session) send(text string) {
 	if session.client == nil {
 		return // left on an earlier message of this frame
+	}
+	if strings.HasPrefix(text, stateStart) && session.connection.Pending() > stateBacklogBytes {
+		session.skipped++
+		return
 	}
 	session.figures.Sent(len(text))
 	if err := session.client.Send(text); err != nil {

@@ -157,12 +157,13 @@ const (
 	settingsTab = "Settings"
 	accountTab  = "Account"
 	controlsTab = "Controls"
+	logTab      = "Log"
 )
 
 // The options' tabs on the ship screen, and in the game.
 var (
-	shipMenuTabs = []string{accountTab, settingsTab, controlsTab}
-	gameMenuTabs = []string{gameTab, figuresTab, settingsTab, accountTab, controlsTab}
+	shipMenuTabs = []string{accountTab, settingsTab, controlsTab, logTab}
+	gameMenuTabs = []string{gameTab, figuresTab, settingsTab, accountTab, logTab}
 )
 
 // buildTabs shows tabs and the chosen one's content; a tab asked for by name (session.tab) is
@@ -191,6 +192,16 @@ func (session *session) buildMenu(context *ui.Context) {
 		settingsTab: func() { session.buildSettings(context) },
 		accountTab:  func() { session.buildAccount(context) },
 		controlsTab: func() { buildControls(context) },
+		logTab:      func() { session.buildLog(context) },
+	})
+}
+
+// buildLog shows the log's last lines, newest last; the whole log is on the SD card, log.txt.
+func (session *session) buildLog(context *ui.Context) {
+	context.ScrollArea("log", ui.Layout{Direction: ui.Vertical, Width: ui.Grow(), Height: ui.Grow()}, func() {
+		for _, line := range session.log.lines {
+			context.Caption(line)
+		}
 	})
 }
 

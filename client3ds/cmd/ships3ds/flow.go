@@ -4,6 +4,7 @@ package main
 
 import (
 	"errors"
+	"strconv"
 
 	"github.com/akrck02/go-3ds/keyboard"
 	"github.com/akrck02/go-3ds/storage"
@@ -80,8 +81,9 @@ const (
 	maximumPasswordLength = 64
 )
 
-// betweenFrames does what was asked this frame and can't be done during one.
+// betweenFrames does what was asked this frame and can't be done during one, and keeps the log.
 func (session *session) betweenFrames() {
+	session.keepLog()
 	asked := session.asking
 	session.asking = askNothing
 	switch asked {
@@ -317,4 +319,27 @@ func (session *session) logOut() {
 func (session *session) forgetSession() {
 	session.account = account.Session{}
 	session.remember(func(remembered *profile.Profile) { remembered.Token, remembered.Username = "", "" })
+}
+
+// keepLog writes status changes and, in the game, figures every few seconds.
+func (session *session) keepLog() {
+	session.log.keep(session.now)
+	if session.status != session.logged {
+		session.logged = session.status
+		if session.status != "" {
+			session.log.add(session.status)
+		}
+	}
+	if session.screen == gameScreen && session.now-session.figuresAt >= figuresLogEvery {
+		session.figuresAt = session.now
+		shown := session.figures.Shown
+		pending := 0
+		if session.connection != nil {
+			pending = session.connection.Pending()
+		}
+		session.log.add("figures: " + strconv.Itoa(shown.FramesPerSecond) + " fps, net " + strconv.Itoa(int(shown.NetworkMilliseconds)) +
+			" ms, in " + strconv.Itoa(shown.BytesIn) + " B/s, out " + strconv.Itoa(shown.BytesOut) + " B/s, pending " + strconv.Itoa(pending) +
+			" B, skipped " + strconv.Itoa(session.skipped) + ", players " + strconv.Itoa(shown.Players))
+		session.skipped = 0
+	}
 }
