@@ -2,6 +2,10 @@ CHANGES
 =======
 Unreleased
 ------------------
+A Nintendo 3DS client, in `client3ds/`: the game on a (New) 3DS, built with
+TinyGo. It logs in, lists the player's ships and joins the same games as the
+browser, over the same websocket and HTTPS API. See `client3ds/README.md`.
+
 Five new built-in ships, so guests have more to choose from: Kestrel (a
 fighter), Mule (a freighter), Lancer (an interceptor), Bulwark (a gunship) and
 Wisp (a scout).

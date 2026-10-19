@@ -36,6 +36,15 @@ jobs:
     - name: Test
       run: go test -race ./...
 
+    # The Nintendo 3DS client is a module of its own; its game, protocol and
+    # network packages are plain Go and are tested here. The console's program
+    # (cmd/ships3ds) needs TinyGo for the 3DS and is left out by its build tag.
+    - name: Test the 3DS client
+      working-directory: client3ds
+      run: |
+        go vet ./...
+        go test -race ./...
+
     - name: Build
       run: CGO_ENABLED=0 go build -v -o ships-go-3d .
 
