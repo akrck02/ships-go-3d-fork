@@ -115,7 +115,8 @@ type session struct {
 	quitting   bool
 	mapRange   int // index in radar.Ranges
 	scanner    *radar.Scanner
-	now        float64 // seconds, this frame
+	now        float64               // seconds, this frame
+	blips      map[string]radar.Blip // where the radar sees each ship this frame, reused
 	figures    figures.Counter
 	ship       int // index in guestShips
 	options    options
@@ -127,7 +128,7 @@ type session struct {
 const maximumServerLength = 64
 
 func newSession() *session {
-	return &session{game: game.New(), server: host + ":" + port, status: "Choose the server and touch Connect", mapRange: radar.DefaultRange, scanner: radar.NewScanner(), options: defaultOptions}
+	return &session{game: game.New(), server: host + ":" + port, status: "Choose the server and touch Connect", mapRange: radar.DefaultRange, scanner: radar.NewScanner(), options: defaultOptions, blips: map[string]radar.Blip{}}
 }
 
 // typeServer opens the system keyboard for the server's address. It runs between frames: the
@@ -206,7 +207,7 @@ func (session *session) exchange(frame app.Frame, now float64) {
 	for _, text := range messages {
 		message, states, readErr := protocol.Read(text)
 		if readErr != nil {
-			println("unreadable message:", readErr.Error())
+			println(readErr.Error()) // the debug log; one bad message doesn't end the game
 			continue
 		}
 		session.figures.Received(len(text))
@@ -241,7 +242,8 @@ func (session *session) exchange(frame app.Frame, now float64) {
 func (session *session) scan(now float64) {
 	state := session.game
 	session.now = now
-	blips := make(map[string]radar.Blip, len(state.Remotes))
+	blips := session.blips
+	clear(blips)
 	for id, remote := range state.Remotes {
 		if !remote.Player.Dead {
 			blips[id] = radar.Place(remote.Shown.Position, state.Own.Position, state.Own.Rotation, radar.Ranges[session.mapRange])

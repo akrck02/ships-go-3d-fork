@@ -10,4 +10,5 @@ var (
 	ErrClosed      = errors.New("websocket.closed")
 	ErrTooLarge    = errors.New("websocket.message-too-large")
 	ErrUnsupported = errors.New("websocket.unsupported-message")
+	ErrBadHeader   = errors.New("websocket.bad-header")
 )

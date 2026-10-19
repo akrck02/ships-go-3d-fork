@@ -157,10 +157,67 @@ func TestEveryErrorHasItsOwnCode(t *testing.T) {
 		ErrHandshake: "websocket.handshake-refused", ErrNotOpen: "websocket.not-open",
 		ErrBadFrame: "websocket.bad-frame", ErrClosed: "websocket.closed",
 		ErrTooLarge: "websocket.message-too-large", ErrUnsupported: "websocket.unsupported-message",
+		ErrBadHeader: "websocket.bad-header",
 	}
 	for err, code := range codes {
 		if err.Error() != code {
 			t.Errorf("%v has the code %q, want %q", err, err.Error(), code)
 		}
+	}
+}
+
+func TestFramesOutOfOrderAreRefused(t *testing.T) {
+	cases := map[string][]byte{
+		"a continuation with no message": {finalBit | opcodeContinuation, 1, 'x'},
+		"a new message inside another":   {opcodeText, 1, 'a', finalBit | opcodeText, 1, 'b'},
+	}
+	for name, frames := range cases {
+		client := &Client{transport: &recordingTransport{}, open: true}
+		client.pending = frames
+		if _, err := client.Receive(); !errors.Is(err, ErrBadFrame) {
+			t.Errorf("%s: got %v, want %v", name, err, ErrBadFrame)
+		}
+	}
+}
+
+func TestASplitMessageIsJoined(t *testing.T) {
+	client := &Client{transport: &recordingTransport{}, open: true}
+	client.pending = []byte{opcodeText, 2, 'h', 'e', finalBit | opcodeContinuation, 3, 'l', 'l', 'o'}
+	messages, err := client.Receive()
+	if err != nil || len(messages) != 1 || messages[0] != "hello" {
+		t.Fatalf("got %q, %v", messages, err)
+	}
+}
+
+func TestARefusedHandshakeClosesTheClient(t *testing.T) {
+	client := &Client{transport: &recordingTransport{}, key: "x"}
+	client.pending = []byte("HTTP/1.1 403 Forbidden\r\n\r\n")
+	if _, err := client.Receive(); !errors.Is(err, ErrHandshake) {
+		t.Fatalf("got %v", err)
+	}
+	if _, err := client.Receive(); !errors.Is(err, ErrClosed) {
+		t.Fatalf("a second Receive got %v, want %v", err, ErrClosed)
+	}
+}
+
+func TestHeadersCannotCarryNewLines(t *testing.T) {
+	_, err := Connect(&recordingTransport{}, "host", "/", map[string]string{"Cookie": "a\r\nX-Evil: 1"})
+	if !errors.Is(err, ErrBadHeader) {
+		t.Fatalf("got %v, want %v", err, ErrBadHeader)
+	}
+}
+
+// failingTransport fails every read with its own error.
+type failingTransport struct{ recordingTransport }
+
+var errTransport = errors.New("transport.broken")
+
+func (*failingTransport) Read([]byte) (int, error) { return 0, errTransport }
+
+func TestTheTransportsErrorIsKept(t *testing.T) {
+	client := &Client{transport: &failingTransport{}, open: true}
+	_, err := client.Receive()
+	if !errors.Is(err, ErrClosed) || !errors.Is(err, errTransport) {
+		t.Fatalf("got %v, want both %v and %v", err, ErrClosed, errTransport)
 	}
 }

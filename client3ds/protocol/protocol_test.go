@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"ships3d/client3ds/flight"
@@ -50,5 +51,14 @@ func TestOutgoingMessagesUseTheServersFieldNames(t *testing.T) {
 				t.Errorf("%s has no %q", text, field)
 			}
 		}
+	}
+}
+
+func TestBrokenJsonHasItsCode(t *testing.T) {
+	if _, _, err := Read("{not json"); !errors.Is(err, ErrUnreadable) {
+		t.Fatalf("got %v, want %v", err, ErrUnreadable)
+	}
+	if ErrUnreadable.Error() != "protocol.unreadable-message" {
+		t.Fatalf("code %q", ErrUnreadable.Error())
 	}
 }

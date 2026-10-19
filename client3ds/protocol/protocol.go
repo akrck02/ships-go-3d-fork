@@ -5,6 +5,7 @@ package protocol
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"ships3d/client3ds/flight"
 )
@@ -115,14 +116,19 @@ type snapshot struct {
 
 // Read understands a message from the server. A snapshot's moved players come back in states.
 func Read(text string) (message Incoming, states []PlayerState, err error) {
-	if err = json.Unmarshal([]byte(text), &message); err != nil || message.Type != TypeSnapshot {
-		return message, nil, err
+	if err = json.Unmarshal([]byte(text), &message); err != nil {
+		return message, nil, fmt.Errorf("%w: %w", ErrUnreadable, err)
+	}
+	if message.Type != TypeSnapshot {
+		return message, nil, nil
 	}
 	// A snapshot's players don't fit Player's fields; they are read again as states.
 	message.Players = nil
 	var moved snapshot
-	err = json.Unmarshal([]byte(text), &moved)
-	return message, moved.Players, err
+	if err = json.Unmarshal([]byte(text), &moved); err != nil {
+		return message, nil, fmt.Errorf("%w: %w", ErrUnreadable, err)
+	}
+	return message, moved.Players, nil
 }
 
 // Join asks to play with a ship.

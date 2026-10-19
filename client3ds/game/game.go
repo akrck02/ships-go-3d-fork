@@ -115,6 +115,7 @@ func (game *Game) Handle(message protocol.Incoming, states []protocol.PlayerStat
 	}
 }
 
+// welcome takes the rules, our id and everyone already playing.
 func (game *Game) welcome(message protocol.Incoming, now float64) {
 	game.Settings, game.Id, game.Welcomed = message.Settings, message.Id, true
 	for _, player := range message.Players {
@@ -128,11 +129,13 @@ func (game *Game) welcome(message protocol.Incoming, now float64) {
 	}
 }
 
+// addRemote starts showing another player where the server says they are.
 func (game *Game) addRemote(player protocol.Player, now float64) {
 	state := protocol.PlayerState{Id: player.Id, Position: player.Position, Rotation: player.Rotation, Velocity: player.Velocity}
 	game.Remotes[player.Id] = &Remote{Player: player, Shown: flight.State{Position: player.Position, Rotation: player.Rotation}, reported: state, seenAt: now}
 }
 
+// setLife changes a player's life after damage.
 func (game *Game) setLife(target string, life float64) {
 	if target == game.Id {
 		game.Player.Life = life
@@ -141,6 +144,7 @@ func (game *Game) setLife(target string, life float64) {
 	}
 }
 
+// died marks target as destroyed and gives from the kill.
 func (game *Game) died(target, from string, now float64) {
 	if target == game.Id {
 		game.Alive, game.diedAt = false, now
@@ -157,6 +161,7 @@ func (game *Game) died(target, from string, now float64) {
 	}
 }
 
+// respawned brings a player back where the server placed them.
 func (game *Game) respawned(message protocol.Incoming, now float64) {
 	if message.Id == game.Id {
 		game.Alive, game.Player.Life = true, message.Life
@@ -171,6 +176,7 @@ func (game *Game) respawned(message protocol.Incoming, now float64) {
 	}
 }
 
+// bulletSeconds is how long a bullet flies.
 func (game *Game) bulletSeconds() float64 {
 	return float64(game.Settings.BulletTtlMs) / millisecondsPerSecond
 }
@@ -202,6 +208,7 @@ func (game *Game) Step(controls flight.Controls, firing, respawning bool, second
 	return game.outgoing
 }
 
+// fire shoots a bullet along our nose and reports it.
 func (game *Game) fire(now float64) {
 	game.lastFire = now
 	game.bulletIds++
@@ -237,7 +244,11 @@ func (game *Game) moveBullets(seconds, now float64) {
 	for _, bullet := range game.Bullets {
 		previous := bullet.Position
 		bullet.Position = bullet.Position.Add(bullet.Direction.Times(distance))
-		if now <= bullet.expiresAt && !game.hitSomeone(bullet, previous) {
+		if target, hit := game.shipHit(previous, bullet.Position); hit {
+			game.outgoing = append(game.outgoing, protocol.Hit(bullet.Id, target))
+			continue
+		}
+		if now <= bullet.expiresAt {
 			kept = append(kept, bullet)
 		}
 	}
@@ -252,12 +263,12 @@ func (game *Game) moveBullets(seconds, now float64) {
 	game.Others = others
 }
 
-func (game *Game) hitSomeone(bullet Bullet, previous flight.Vector) bool {
+// shipHit finds the ship, as we draw it, that something moving from from to to passed through.
+func (game *Game) shipHit(from, to flight.Vector) (target string, hit bool) {
 	for id, remote := range game.Remotes {
-		if !remote.Player.Dead && flight.SegmentHitsSphere(previous, bullet.Position, remote.Shown.Position, game.Settings.ShipRadius) {
-			game.outgoing = append(game.outgoing, protocol.Hit(bullet.Id, id))
-			return true
+		if !remote.Player.Dead && flight.SegmentHitsSphere(from, to, remote.Shown.Position, game.Settings.ShipRadius) {
+			return id, true
 		}
 	}
-	return false
+	return "", false
 }

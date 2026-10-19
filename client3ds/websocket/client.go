@@ -39,6 +39,9 @@ const (
 	opcodePong         = 0xA
 )
 
+// maximumHeaderBytes is the longest frame header: two bytes, a 64-bit length and a mask key.
+const maximumHeaderBytes = 14
+
 const (
 	finalBit       = 0x80
 	maskBit        = 0x80
@@ -60,6 +63,7 @@ type Client struct {
 	closed    bool
 	pending   []byte // received and not yet understood
 	message   []byte // the pieces of a message split over several frames
+	inMessage bool   // a message's first frame came and its last hasn't
 	chunk     []byte
 	frame     []byte // the frame being sent, reused
 	messages  []string
@@ -73,6 +77,11 @@ func Connect(transport Transport, host, path string, header map[string]string) (
 		// The key only has to differ between connections, to stop caches answering for the
 		// server; it guards nothing, so a fast generator is enough.
 		nonce[index] = byte(rand.Uint32())
+	}
+	for name, value := range header {
+		if strings.ContainsAny(name, "\r\n:") || strings.ContainsAny(value, "\r\n") {
+			return nil, fmt.Errorf("%w: %q", ErrBadHeader, name)
+		}
 	}
 	client := &Client{transport: transport, key: base64.StdEncoding.EncodeToString(nonce[:]), chunk: make([]byte, readChunkBytes)}
 	var request strings.Builder
@@ -98,11 +107,12 @@ func (client *Client) Receive() ([]string, error) {
 	if client.closed {
 		return nil, ErrClosed
 	}
-	for {
+	// A server sending faster than we read can't make pending grow past one whole message.
+	for len(client.pending) <= MaximumMessageBytes+maximumHeaderBytes {
 		count, err := client.transport.Read(client.chunk)
 		if err != nil {
 			client.closed = true
-			return client.messages, fmt.Errorf("%w: %v", ErrClosed, err)
+			return client.messages, fmt.Errorf("%w: %w", ErrClosed, err)
 		}
 		if count == 0 {
 			break
@@ -111,12 +121,17 @@ func (client *Client) Receive() ([]string, error) {
 	}
 	if !client.open {
 		done, err := client.readHandshake()
-		if err != nil || !done {
+		if err != nil {
+			client.closed = true
 			return nil, err
 		}
+		if !done {
+			return nil, nil
+		}
 	}
+	read := 0
 	for {
-		consumed, err := client.readFrame()
+		consumed, err := client.readFrame(client.pending[read:])
 		if err != nil {
 			client.closed = true
 			return client.messages, err
@@ -124,9 +139,10 @@ func (client *Client) Receive() ([]string, error) {
 		if consumed == 0 {
 			break
 		}
-		client.pending = client.pending[consumed:]
+		read += consumed
 	}
-	client.pending = append(client.pending[:0:0], client.pending...) // let the read bytes go
+	// Keep what is left at the start of the same buffer, so it is reused frame after frame.
+	client.pending = client.pending[:copy(client.pending, client.pending[read:])]
 	return client.messages, nil
 }
 
@@ -161,8 +177,7 @@ func acceptFor(key string) string {
 
 // readFrame understands the first frame of pending, if it has arrived whole, and returns how many
 // bytes it took (0 when it hasn't arrived whole yet).
-func (client *Client) readFrame() (int, error) {
-	pending := client.pending
+func (client *Client) readFrame(pending []byte) (int, error) {
 	if len(pending) < 2 {
 		return 0, nil
 	}
@@ -202,7 +217,12 @@ func (client *Client) readFrame() (int, error) {
 func (client *Client) handleFrame(opcode byte, final bool, payload []byte) error {
 	switch opcode {
 	case opcodeText, opcodeContinuation:
+		// A message starts with a text frame and goes on with continuations (RFC 6455, 5.4).
+		if (opcode == opcodeText) == client.inMessage {
+			return fmt.Errorf("%w: a message's frames out of order", ErrBadFrame)
+		}
 		client.message = append(client.message, payload...)
+		client.inMessage = !final
 		if final {
 			client.messages = append(client.messages, string(client.message))
 			client.message = client.message[:0]

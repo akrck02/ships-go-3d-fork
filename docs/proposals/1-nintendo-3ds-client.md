@@ -66,25 +66,38 @@ console).
 
 - [x] T1 — TCP sockets on the 3DS · go-3ds `network` package (branch feature/network, local) + `cmd/echo` · R1 · test: echo in Azahar
 - [x] T2 — websocket client · `client3ds/websocket` · R2 · test: `TestAClientTalksToAGorillaServer`, `TestClientFramesAreMasked`
-- [x] T3 — protocol messages · `client3ds/protocol` · R3 · test: `TestEveryMessageRoundTripsThroughJson`
+- [x] T3 — protocol messages · `client3ds/protocol` · R3 · test: `TestAWelcomeIsRead`, `TestASnapshotGivesItsMovedPlayers`, `TestOutgoingMessagesUseTheServersFieldNames`
 - [x] T4 — join as a guest from the console · `cmd/ships3ds` · R3 · test: Azahar against `runDev.sh`, browser sees the ship
 - [x] T5 — primitive meshes · `client3ds/ship` · R4 · test: `TestEachPrimitiveFitsTheUnitCube`, `TestAMirroredPartIsReflectedAcrossX`
 - [x] T6 — draw the ships, top screen in stereo · `cmd/ships3ds` · R4 · test: screenshot next to the browser
 - [x] T7 — flight · `client3ds/flight` · R5 · test: `TestRaisingTheNoseClimbs`, `TestTheWorldEdgeIsAWall`
 - [x] T8 — fire, hits, damage, respawn · `client3ds/game` · R6 · test: `TestABulletAlongTheNoseHitsAShipAhead`
 - [x] T9 — touch-screen scoreboard · `cmd/ships3ds` · R7 · test: screenshot in Azahar
+- [x] T12 — asked for after the demo: title screen, server typed on the system keyboard (go-3ds `keyboard`), the touch screen as a sweeping radar (`client3ds/radar`), START options with Game, Figures (`client3ds/figures`), Settings and Controls tabs, the C-stick (go-3ds `app`), ship choice, aim cross and chase camera (`client3ds/chase`) · tests: `TestAShipShowsOnlyOnceTheSweepPassesIt`, `TestASecondOfFramesIsShownWhole`, `TestTheCameraLagsThenCatchesUp`, `TestTheCurveKeepsTheEdgesAndSoftensTheCentre`, `TestTheRespawnCountsDown`
+- [x] T13 — fixes from the review: connect and send time out (go-3ds `network`), websocket frames out of order refused, pending bounded and reused, handshake refusal closes, header injection refused, error codes kept through wrapping, `protocol.unreadable-message`, the C-stick service released · tests: `TestFramesOutOfOrderAreRefused`, `TestARefusedHandshakeClosesTheClient`, `TestHeadersCannotCarryNewLines`, `TestTheTransportsErrorIsKept`, `TestBrokenJsonHasItsCode`, echo against an unreachable address in Azahar
 - [ ] T10 — TLS and login · decided then · R8 · test: join against the HTTPS dev server
 - [x] T11 — check the server is untouched · R9 · test: `go test ./...`
 
 ## Result
 
-Demo working in Azahar against a local server (MongoDB in Docker) and a bot on the PC: the 3DS
-picks the server's address on the touch screen, joins as a guest with the Arrow, sees the other
-ship, flies and fires; the server applies the damage. 60 fps in the emulator.
+Released as prereleases `demo-1` … `demo-8` in the author's private copy (akrck02/ships-go-3d),
+built from `feature/3ds-client`. Tested in the Azahar emulator against the server and a bot on
+the PC, and the author has joined a game from the console (server log, 2026-10-18 22:35).
 
-Changed from the plan: sockets live in go-3ds (`network`), not in TinyGo, since they are platform
-code. go-renderer's `ctr` keeps one baked copy of a mesh per orientation, forever, so turning
-ships filled the GPU memory; `cmd/ships3ds` gives each node its own mesh and drops the bake when
-it turns (TODO in `world.go`).
+What the client does: join as a guest with a built-in ship chosen on the touch screen, fly with
+the circle pad (fine aim and invert settings), the C-stick or the buttons, fire and hit (the
+server applies the damage), respawn, and see the others in stereoscopic 3D with an aim cross and
+a lagging chase camera. The touch screen is a radar that sweeps once every 5 seconds, with the
+speed, hits and the respawn countdown; START opens the game, figures, settings and controls.
 
-Pending: R8 (TLS and login), choosing the ship, a test on the console, and a person's review.
+Changed from the plan: sockets, the keyboard, START handling and the C-stick live in go-3ds
+(`network`, `keyboard`, `app`), on its local branch `feature/network`, which is not pushed:
+building the client needs that copy next to this repository (`replace` in `client3ds/go.mod`).
+go-renderer's `ctr` keeps one baked copy of a mesh per orientation, forever, so turning ships
+filled the GPU memory; `cmd/ships3ds` gives each node its own mesh and drops the bake when it
+turns (TODO in `world.go`).
+
+Pending: R8 (TLS and login: needs a decision between mbedtls, sslc and a plain port), a
+reviewer's second pass, and a person's review of all of it. The reviewer's notes on comments of
+private helpers and per-frame allocations were addressed; `println` stays for the debug log, as
+TinyGo on the 3DS has no `log/slog` output.
