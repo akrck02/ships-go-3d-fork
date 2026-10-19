@@ -161,7 +161,11 @@ func (session *session) askWithKeyboard() {
 	session.asking = askNothing
 	switch asked {
 	case askServer:
-		session.server, _ = keyboard.Ask(keyboard.Numbers, "Server address:port", session.server, maximumServerLength)
+		server, confirmed := keyboard.Ask(keyboard.Numbers, "Server address:port", session.server, maximumServerLength)
+		if confirmed {
+			session.server = server
+			session.refreshShips()
+		}
 	case askLogin:
 		session.logIn()
 	}
@@ -217,16 +221,31 @@ func (session *session) logIn() {
 	}
 	session.account = logged
 	session.status = "Logged in as " + logged.Username
-	ships, err := server.Ships(logged)
-	if err != nil {
-		session.status = "Logged in, but the ships didn't load: " + err.Error()
-		return
-	}
-	session.offer(ships)
+	session.refreshShips()
 }
 
-// offer makes the Ship arrows go through the built-in ships, then the player's own.
+// refreshShips asks the server which ships it has for this player, so the arrows offer only
+// those: a server running an older version has fewer built-in ships. It waits for the answer, a
+// few seconds at most; it runs after the keyboard, or when the player touches Connect.
+func (session *session) refreshShips() bool {
+	server, err := session.api()
+	if err != nil {
+		session.status = err.Error()
+		return false
+	}
+	ships, err := server.Ships(session.account)
+	if err != nil {
+		session.status = "The server's ships didn't load: " + err.Error()
+		return false
+	}
+	session.offer(ships)
+	return true
+}
+
+// offer makes the Ship arrows go through the built-in ships, then the player's own, keeping the
+// chosen one when the server has it.
 func (session *session) offer(ships account.Ships) {
+	chosen := session.ships[session.ship].id
 	session.ships = session.ships[:0:0]
 	for _, ship := range ships.Defaults {
 		session.ships = append(session.ships, shipChoice{id: ship.Id, name: ship.Name})
@@ -238,6 +257,21 @@ func (session *session) offer(ships account.Ships) {
 		session.ships = guestShips
 	}
 	session.ship = 0
+	for index, choice := range session.ships {
+		if choice.id == chosen {
+			session.ship = index
+		}
+	}
+}
+
+// offers tells whether the arrows' list holds a ship.
+func (session *session) offers(id string) bool {
+	for _, choice := range session.ships {
+		if choice.id == id {
+			return true
+		}
+	}
+	return false
 }
 
 // logOut ends the session on the server and goes back to the built-in ships.
@@ -247,13 +281,18 @@ func (session *session) logOut() {
 		_ = server.LogOut(session.account)
 	}
 	session.account = account.Session{}
-	session.ships, session.ship = guestShips, 0
 	session.status = "Logged out"
+	session.refreshShips()
 }
 
 // connect opens the connection and starts the websocket handshake, with the session's cookie
 // when logged in.
 func (session *session) connect() {
+	chosen := session.ships[session.ship]
+	if session.refreshShips() && !session.offers(chosen.id) {
+		session.status = "This server has no " + chosen.name + ": choose another ship"
+		return
+	}
 	address, portNumber, err := session.serverAddress()
 	if err != nil {
 		session.status = err.Error()
@@ -437,18 +476,12 @@ func (session *session) playerName() string {
 	return name
 }
 
-// guestShips are the built-in ships a guest may fly, as the server names them
-// (game/defaultShips.go): change both together. Logging in replaces them with the server's own
-// list.
+// guestShips are what the arrows offer before the server has said which ships it has: the
+// built-in ships every version of it has (game/defaultShips.go).
 var guestShips = []shipChoice{
 	{id: "default:arrow", name: "Arrow"},
 	{id: "default:hammer", name: "Hammer"},
 	{id: "default:saucer", name: "Saucer"},
-	{id: "default:kestrel", name: "Kestrel"},
-	{id: "default:mule", name: "Mule"},
-	{id: "default:lancer", name: "Lancer"},
-	{id: "default:bulwark", name: "Bulwark"},
-	{id: "default:wisp", name: "Wisp"},
 }
 
 // options are the player's choices in the Settings tab.
