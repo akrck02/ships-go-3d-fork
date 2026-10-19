@@ -13,7 +13,7 @@ func TestAWelcomeIsRead(t *testing.T) {
 	"players":[{"id":"a","name":"Guest","ship":{"id":"default:arrow","name":"Arrow","layers":[{"name":"Hull","visible":true,
 	"parts":[{"type":"box","position":[0,0,0],"rotation":[0,0,0],"scale":[1,2,3],"color":"#ffffff","mirror":true}]}]},
 	"scale":0.5,"life":10,"p":[1,2,3],"q":[0,0,0,1]}]}`
-	message, _, err := Read(text)
+	message, _, err := (&Reader{}).Read(text)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,7 +27,7 @@ func TestAWelcomeIsRead(t *testing.T) {
 }
 
 func TestASnapshotGivesItsMovedPlayers(t *testing.T) {
-	message, states, err := Read(`{"type":"snapshot","players":[{"id":"b","p":[1,0,0],"q":[0,0,0,1],"v":[0,0,5]}]}`)
+	message, states, err := (&Reader{}).Read(`{"type":"snapshot","players":[{"id":"b","p":[1,0,0],"q":[0,0,0,1],"v":[0,0,5]}]}`)
 	if err != nil || message.Type != TypeSnapshot || len(states) != 1 || states[0].Velocity[2] != 5 {
 		t.Fatalf("got %+v %+v %v", message, states, err)
 	}
@@ -55,7 +55,7 @@ func TestOutgoingMessagesUseTheServersFieldNames(t *testing.T) {
 }
 
 func TestBrokenJsonHasItsCode(t *testing.T) {
-	if _, _, err := Read("{not json"); !errors.Is(err, ErrUnreadable) {
+	if _, _, err := (&Reader{}).Read("{not json"); !errors.Is(err, ErrUnreadable) {
 		t.Fatalf("got %v, want %v", err, ErrUnreadable)
 	}
 	if ErrUnreadable.Error() != "protocol.unreadable-message" {
@@ -64,7 +64,7 @@ func TestBrokenJsonHasItsCode(t *testing.T) {
 }
 
 func TestASnapshotWithTypeLastIsStillRead(t *testing.T) {
-	_, states, err := Read(`{"players":[{"id":"b","p":[1,0,0],"q":[0,0,0,1],"v":[0,0,0]}],"type":"snapshot"}`)
+	_, states, err := (&Reader{}).Read(`{"players":[{"id":"b","p":[1,0,0],"q":[0,0,0,1],"v":[0,0,0]}],"type":"snapshot"}`)
 	if err != nil || len(states) != 1 || states[0].Id != "b" {
 		t.Fatalf("got %+v, %v", states, err)
 	}

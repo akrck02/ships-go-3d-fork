@@ -116,18 +116,20 @@ type snapshot struct {
 }
 
 // snapshotStart is how the server begins every snapshot: Go's encoder writes the fields in their
-// order, and "type" is the first. Snapshots are most of what arrives, many a second, so they are
-// told apart by it and decoded once, straight into their own shape.
+// order, and "type" is the first. Snapshots are told apart by it and read by hand.
 const snapshotStart = `{"type":"` + TypeSnapshot + `"`
 
-// Read understands a message from the server. A snapshot's moved players come back in states.
-func Read(text string) (message Incoming, states []PlayerState, err error) {
+// Reader understands the server's messages, keeping what it can between them.
+type Reader struct {
+	snapshots SnapshotReader
+}
+
+// Read understands a message from the server. A snapshot's moved players come back in states,
+// a slice the next call reuses.
+func (reader *Reader) Read(text string) (message Incoming, states []PlayerState, err error) {
 	if strings.HasPrefix(text, snapshotStart) {
-		var moved snapshot
-		if err = json.Unmarshal([]byte(text), &moved); err != nil {
-			return message, nil, fmt.Errorf("%w: %w", ErrUnreadable, err)
-		}
-		return Incoming{Type: TypeSnapshot}, moved.Players, nil
+		states, err = reader.snapshots.Read(text)
+		return Incoming{Type: TypeSnapshot}, states, err
 	}
 	if err = json.Unmarshal([]byte(text), &message); err != nil {
 		return message, nil, fmt.Errorf("%w: %w", ErrUnreadable, err)

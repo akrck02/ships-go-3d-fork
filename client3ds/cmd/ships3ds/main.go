@@ -120,6 +120,7 @@ type session struct {
 	now        float64               // seconds, this frame
 	blips      map[string]radar.Blip // where the radar sees each ship this frame, reused
 	figures    figures.Counter
+	reader     protocol.Reader
 	ship       int // index in guestShips
 	options    options
 	tilt       tilt.Tilt
@@ -209,7 +210,7 @@ func (session *session) exchange(frame app.Frame, now float64) {
 	}
 	messages, err := session.client.Receive()
 	for _, text := range messages {
-		message, states, readErr := protocol.Read(text)
+		message, states, readErr := session.reader.Read(text)
 		if readErr != nil {
 			println(readErr.Error()) // the debug log; one bad message doesn't end the game
 			continue
