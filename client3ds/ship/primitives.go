@@ -27,60 +27,78 @@ const (
 	partFrustum  = "frustum"
 )
 
-// The browser's segment counts, so a ship looks the same on both.
+// The torus's shape, and the sides of the shapes that have few.
 const (
-	sphereWidthSegments  = 20
-	sphereHeightSegments = 14
-	roundSegments        = 20 // cylinders, cones and frustums
-	latheSegments        = 20 // domes, capsules and tubes
-	torusRadius          = 0.35
-	torusTubeRadius      = 0.15
-	torusTubeSegments    = 10
-	torusRingSegments    = 28
-	pyramidSides         = 4
-	prismSides           = 6
+	torusRadius     = 0.35
+	torusTubeRadius = 0.15
+	pyramidSides    = 4
+	prismSides      = 6
 )
 
-// primitives are each type's triangles, worked out once.
-var primitives = map[string][]triangle{}
+// Detail is how many segments the round primitives have.
+type Detail struct {
+	sphereWidth, sphereHeight int
+	round                     int // cylinders, cones and frustums
+	lathe                     int // domes, capsules and tubes
+	torusTube, torusRing      int
+	domeSteps, capsuleSteps   int
+}
+
+var (
+	// Fine is the browser's detail, so a ship close by looks the same on both.
+	Fine = Detail{sphereWidth: 20, sphereHeight: 14, round: 20, lathe: 20, torusTube: 10, torusRing: 28, domeSteps: 7, capsuleSteps: 5}
+	// Coarse is for ships far away, where the screen shows a few pixels of them: about a fifth
+	// of the triangles.
+	Coarse = Detail{sphereWidth: 8, sphereHeight: 6, round: 8, lathe: 8, torusTube: 5, torusRing: 12, domeSteps: 3, capsuleSteps: 2}
+)
+
+// primitiveKey is a type at a detail.
+type primitiveKey struct {
+	kind   string
+	detail Detail
+}
+
+// primitives are each type's triangles, worked out once per detail.
+var primitives = map[primitiveKey][]triangle{}
 
 // primitive returns the triangles of a type, in the unit cube centred on the origin; nil for a
 // type it doesn't know.
-func primitive(kind string) []triangle {
-	if triangles, found := primitives[kind]; found {
+func primitive(kind string, detail Detail) []triangle {
+	key := primitiveKey{kind, detail}
+	if triangles, found := primitives[key]; found {
 		return triangles
 	}
-	triangles := buildPrimitive(kind)
-	primitives[kind] = triangles
+	triangles := buildPrimitive(kind, detail)
+	primitives[key] = triangles
 	return triangles
 }
 
-func buildPrimitive(kind string) []triangle {
+func buildPrimitive(kind string, detail Detail) []triangle {
 	switch kind {
 	case partBox:
 		return box()
 	case partSphere:
-		return sphere(0.5, sphereWidthSegments, sphereHeightSegments)
+		return sphere(0.5, detail.sphereWidth, detail.sphereHeight)
 	case partCylinder:
-		return cylinder(0.5, 0.5, roundSegments, 0)
+		return cylinder(0.5, 0.5, detail.round, 0)
 	case partCone:
-		return cylinder(0, 0.5, roundSegments, 0)
+		return cylinder(0, 0.5, detail.round, 0)
 	case partWedge:
 		return wedge()
 	case partTorus:
-		return torus()
+		return torus(detail.torusRing, detail.torusTube)
 	case partDome:
-		return lathe(domeProfile())
+		return lathe(domeProfile(detail.domeSteps), detail.lathe)
 	case partCapsule:
-		return lathe(capsuleProfile())
+		return lathe(capsuleProfile(detail.capsuleSteps), detail.lathe)
 	case partPyramid:
 		return cylinder(0, math.Sqrt2/2, pyramidSides, math.Pi/4)
 	case partTube:
-		return lathe([]point2{{0.5, -0.5}, {0.5, 0.5}, {0.3, 0.5}, {0.3, -0.5}, {0.5, -0.5}})
+		return lathe([]point2{{0.5, -0.5}, {0.5, 0.5}, {0.3, 0.5}, {0.3, -0.5}, {0.5, -0.5}}, detail.lathe)
 	case partPrism:
 		return cylinder(0.5, 0.5, prismSides, 0)
 	case partFrustum:
-		return cylinder(0.25, 0.5, roundSegments, 0)
+		return cylinder(0.25, 0.5, detail.round, 0)
 	}
 	return nil
 }
@@ -170,16 +188,16 @@ func wedge() []triangle {
 }
 
 // torus is three.js's TorusGeometry: a ring in the XY plane, around Z.
-func torus() []triangle {
+func torus(ringSegments, tubeSegments int) []triangle {
 	at := func(ring, tube int) point {
-		around := float64(ring) / float64(torusRingSegments) * 2 * math.Pi
-		across := float64(tube) / float64(torusTubeSegments) * 2 * math.Pi
+		around := float64(ring) / float64(ringSegments) * 2 * math.Pi
+		across := float64(tube) / float64(tubeSegments) * 2 * math.Pi
 		distance := torusRadius + torusTubeRadius*math.Cos(across)
 		return point{distance * math.Cos(around), distance * math.Sin(around), torusTubeRadius * math.Sin(across)}
 	}
 	var triangles []triangle
-	for tube := range torusTubeSegments {
-		for ring := range torusRingSegments {
+	for tube := range tubeSegments {
+		for ring := range ringSegments {
 			triangles = append(triangles, quad(at(ring, tube), at(ring+1, tube), at(ring+1, tube+1), at(ring, tube+1))...)
 		}
 	}
@@ -190,13 +208,13 @@ func torus() []triangle {
 type point2 [2]float64
 
 // lathe spins a profile around Y, as three.js's LatheGeometry.
-func lathe(profile []point2) []triangle {
+func lathe(profile []point2, segments int) []triangle {
 	at := func(segment int, profilePoint point2) point {
-		angle := float64(segment) / float64(latheSegments) * 2 * math.Pi
+		angle := float64(segment) / float64(segments) * 2 * math.Pi
 		return point{profilePoint[0] * math.Sin(angle), profilePoint[1], profilePoint[0] * math.Cos(angle)}
 	}
 	var triangles []triangle
-	for segment := range latheSegments {
+	for segment := range segments {
 		for index := 0; index+1 < len(profile); index++ {
 			triangles = append(triangles, quad(at(segment, profile[index]), at(segment+1, profile[index]), at(segment+1, profile[index+1]), at(segment, profile[index+1]))...)
 		}
@@ -204,31 +222,25 @@ func lathe(profile []point2) []triangle {
 	return triangles
 }
 
-// The number of steps in each rounded profile, as the browser's.
-const (
-	domeSteps    = 7
-	capsuleSteps = 5
-)
-
 // domeProfile is half a sphere stretched to fill the cube, flat base at the bottom.
-func domeProfile() []point2 {
+func domeProfile(steps int) []point2 {
 	profile := []point2{{0, -0.5}}
-	for step := 0; step <= domeSteps; step++ {
-		angle := float64(step) / domeSteps * math.Pi / 2
+	for step := 0; step <= steps; step++ {
+		angle := float64(step) / float64(steps) * math.Pi / 2
 		profile = append(profile, point2{0.5 * math.Cos(angle), -0.5 + math.Sin(angle)})
 	}
 	return profile
 }
 
 // capsuleProfile is a cylinder with rounded ends, each end a quarter of the height.
-func capsuleProfile() []point2 {
+func capsuleProfile(steps int) []point2 {
 	profile := []point2{{0, -0.5}}
-	for step := 1; step <= capsuleSteps; step++ {
-		angle := float64(step) / capsuleSteps * math.Pi / 2
+	for step := 1; step <= steps; step++ {
+		angle := float64(step) / float64(steps) * math.Pi / 2
 		profile = append(profile, point2{0.5 * math.Sin(angle), -0.25 - 0.25*math.Cos(angle)})
 	}
-	for step := 0; step <= capsuleSteps; step++ {
-		angle := float64(step) / capsuleSteps * math.Pi / 2
+	for step := 0; step <= steps; step++ {
+		angle := float64(step) / float64(steps) * math.Pi / 2
 		profile = append(profile, point2{0.5 * math.Cos(angle), 0.25 + 0.25*math.Sin(angle)})
 	}
 	return profile

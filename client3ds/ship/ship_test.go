@@ -15,7 +15,7 @@ const slack = 1e-9
 
 func TestEachPrimitiveFitsTheUnitCube(t *testing.T) {
 	for _, kind := range everyType {
-		triangles := primitive(kind)
+		triangles := primitive(kind, Fine)
 		if len(triangles) == 0 {
 			t.Errorf("%s has no triangles", kind)
 		}
@@ -41,7 +41,7 @@ func TestEachPrimitiveFillsItsHeight(t *testing.T) {
 			continue // it lies in XY, a ring around Z
 		}
 		low, high := math.Inf(1), math.Inf(-1)
-		for _, corners := range primitive(kind) {
+		for _, corners := range primitive(kind, Fine) {
 			for _, corner := range corners {
 				low, high = min(low, corner[1]), max(high, corner[1])
 			}
@@ -57,7 +57,7 @@ func boxPart(position flight.Vector, mirror bool) protocol.Part {
 }
 
 func TestAMirroredPartIsReflectedAcrossX(t *testing.T) {
-	mesh := Build([]protocol.Layer{{Visible: true, Parts: []protocol.Part{boxPart(flight.Vector{3, 0, 0}, true)}}})
+	mesh := Build([]protocol.Layer{{Visible: true, Parts: []protocol.Part{boxPart(flight.Vector{3, 0, 0}, true)}}}, Fine)
 	lowest, highest := float32(math.Inf(1)), float32(math.Inf(-1))
 	for index := 0; index < len(mesh.Positions); index += 3 {
 		lowest, highest = min(lowest, mesh.Positions[index]), max(highest, mesh.Positions[index])
@@ -68,7 +68,7 @@ func TestAMirroredPartIsReflectedAcrossX(t *testing.T) {
 }
 
 func TestHiddenLayersAreNotBuilt(t *testing.T) {
-	mesh := Build([]protocol.Layer{{Visible: false, Parts: []protocol.Part{boxPart(flight.Vector{}, false)}}})
+	mesh := Build([]protocol.Layer{{Visible: false, Parts: []protocol.Part{boxPart(flight.Vector{}, false)}}}, Fine)
 	if mesh.VertexCount() != 0 {
 		t.Fatalf("%d vertices from a hidden layer", mesh.VertexCount())
 	}
@@ -87,5 +87,28 @@ func TestColoursAreReadAsSRGB(t *testing.T) {
 	}
 	if got := linearColour("not a colour"); got == ([3]float32{}) {
 		t.Fatal("a bad colour came out black, want the fallback grey")
+	}
+}
+
+func TestTheCoarseDetailHasFarFewerTriangles(t *testing.T) {
+	for _, kind := range []string{partSphere, partTorus, partCapsule, partCylinder} {
+		fine, coarse := len(primitive(kind, Fine)), len(primitive(kind, Coarse))
+		if coarse*2 > fine {
+			t.Errorf("%s: %d coarse triangles for %d fine, want under half", kind, coarse, fine)
+		}
+	}
+}
+
+func TestTheCoarseDetailFillsTheSameCube(t *testing.T) {
+	for _, kind := range everyType {
+		low, high := math.Inf(1), math.Inf(-1)
+		for _, corners := range primitive(kind, Coarse) {
+			for _, corner := range corners {
+				low, high = min(low, corner[0]), max(high, corner[0])
+			}
+		}
+		if low < -0.5-slack || high > 0.5+slack {
+			t.Errorf("%s spans %v to %v across, outside the unit cube", kind, low, high)
+		}
 	}
 }

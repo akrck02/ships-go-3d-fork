@@ -6,6 +6,7 @@ package protocol
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"ships3d/client3ds/flight"
 )
@@ -114,21 +115,33 @@ type snapshot struct {
 	Players []PlayerState `json:"players"`
 }
 
+// snapshotStart is how the server begins every snapshot: Go's encoder writes the fields in their
+// order, and "type" is the first. Snapshots are most of what arrives, many a second, so they are
+// told apart by it and decoded once, straight into their own shape.
+const snapshotStart = `{"type":"` + TypeSnapshot + `"`
+
 // Read understands a message from the server. A snapshot's moved players come back in states.
 func Read(text string) (message Incoming, states []PlayerState, err error) {
+	if strings.HasPrefix(text, snapshotStart) {
+		var moved snapshot
+		if err = json.Unmarshal([]byte(text), &moved); err != nil {
+			return message, nil, fmt.Errorf("%w: %w", ErrUnreadable, err)
+		}
+		return Incoming{Type: TypeSnapshot}, moved.Players, nil
+	}
 	if err = json.Unmarshal([]byte(text), &message); err != nil {
 		return message, nil, fmt.Errorf("%w: %w", ErrUnreadable, err)
 	}
-	if message.Type != TypeSnapshot {
-		return message, nil, nil
+	if message.Type == TypeSnapshot {
+		// A snapshot written another way round: slower, but still understood.
+		message.Players = nil
+		var moved snapshot
+		if err = json.Unmarshal([]byte(text), &moved); err != nil {
+			return message, nil, fmt.Errorf("%w: %w", ErrUnreadable, err)
+		}
+		return message, moved.Players, nil
 	}
-	// A snapshot's players don't fit Player's fields; they are read again as states.
-	message.Players = nil
-	var moved snapshot
-	if err = json.Unmarshal([]byte(text), &moved); err != nil {
-		return message, nil, fmt.Errorf("%w: %w", ErrUnreadable, err)
-	}
-	return message, moved.Players, nil
+	return message, nil, nil
 }
 
 // Join asks to play with a ship.

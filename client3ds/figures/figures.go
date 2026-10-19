@@ -7,6 +7,8 @@ package figures
 type Frame struct {
 	Seconds               float64 // since the previous frame
 	ProcessorMilliseconds float32 // the game and the planning, on the processor
+	NetworkMilliseconds   float32 // of which reading and answering the server
+	DrawingMilliseconds   float32 // of which preparing the drawing (baking, planning, the touch screen)
 	GPUMilliseconds       float32 // drawing, on the GPU (citro3d's measure)
 	Triangles             int
 	DrawCalls             int
@@ -20,6 +22,8 @@ type Frame struct {
 type Second struct {
 	FramesPerSecond           int
 	ProcessorMilliseconds     float32 // per frame, on average
+	NetworkMilliseconds       float32
+	DrawingMilliseconds       float32
 	GPUMilliseconds           float32
 	SlowestFrameMilliseconds  float32
 	Triangles                 int // in the last frame
@@ -45,6 +49,8 @@ type Counter struct {
 	firstBakes            int
 	started               bool
 	processorMilliseconds float32
+	networkMilliseconds   float32
+	drawingMilliseconds   float32
 	gpuMilliseconds       float32
 }
 
@@ -56,6 +62,8 @@ func (counter *Counter) AddFrame(frame Frame) {
 	counter.current.FramesPerSecond++
 	counter.elapsed += frame.Seconds
 	counter.processorMilliseconds += frame.ProcessorMilliseconds
+	counter.networkMilliseconds += frame.NetworkMilliseconds
+	counter.drawingMilliseconds += frame.DrawingMilliseconds
 	counter.gpuMilliseconds += frame.GPUMilliseconds
 	counter.current.SlowestFrameMilliseconds = max(counter.current.SlowestFrameMilliseconds, float32(frame.Seconds*millisecondsPerSecond))
 	counter.current.Triangles, counter.current.DrawCalls = frame.Triangles, frame.DrawCalls
@@ -66,10 +74,12 @@ func (counter *Counter) AddFrame(frame Frame) {
 	}
 	frames := float32(counter.current.FramesPerSecond)
 	counter.current.ProcessorMilliseconds, counter.current.GPUMilliseconds = counter.processorMilliseconds/frames, counter.gpuMilliseconds/frames
+	counter.current.NetworkMilliseconds, counter.current.DrawingMilliseconds = counter.networkMilliseconds/frames, counter.drawingMilliseconds/frames
 	counter.current.BakesPerSecond = frame.Bakes - counter.firstBakes
 	counter.Shown = counter.current
 	counter.current = Second{}
 	counter.elapsed, counter.processorMilliseconds, counter.gpuMilliseconds, counter.firstBakes = 0, 0, 0, frame.Bakes
+	counter.networkMilliseconds, counter.drawingMilliseconds = 0, 0
 }
 
 // Received counts a message from the server.

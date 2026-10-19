@@ -45,6 +45,10 @@ func (session *session) buildFigureChips(context *ui.Context, judged func(bool) 
 	})
 	context.Row(func() {
 		context.Chip("timer", tenths(shown.SlowestFrameMilliseconds)+" ms slowest", judged(shown.SlowestFrameMilliseconds < 2*frameBudgetMilliseconds))
+		context.Chip("wifi", tenths(shown.NetworkMilliseconds)+" ms net", plain)
+		context.Chip("brush", tenths(shown.DrawingMilliseconds)+" ms draw", plain)
+	})
+	context.Row(func() {
 		context.Chip("memory-stick", tenths(float32(shown.HeapBytes)/bytesPerMegabyte)+" MB heap", plain)
 	})
 	context.Caption("Drawing")

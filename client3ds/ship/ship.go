@@ -13,19 +13,19 @@ import (
 // shipMaterial lights every ship like the sun lights the island: the browser's flat shading.
 var shipMaterial = &scene.Material{Name: "ship", Kind: scene.KindLit, BaseColor: [4]float32{1, 1, 1, 1}, DoubleSided: true}
 
-// Build makes one mesh of a ship's visible parts, in the design's own units: the caller scales it
-// to the game's ship size. Parts of a type it doesn't know are left out.
-func Build(layers []protocol.Layer) *scene.Mesh {
+// Build makes one mesh of a ship's visible parts at a detail, in the design's own units: the
+// caller scales it to the game's ship size. Parts of a type it doesn't know are left out.
+func Build(layers []protocol.Layer, detail Detail) *scene.Mesh {
 	mesh := &scene.Mesh{Name: "ship", Material: shipMaterial}
 	for _, layer := range layers {
 		if !layer.Visible {
 			continue
 		}
 		for _, part := range layer.Parts {
-			addPart(mesh, part, part.Position, part.Rotation)
+			addPart(mesh, part, detail, part.Position, part.Rotation)
 			if part.Mirror {
 				// The browser's mirror: across X = 0, which turns the other way about Y and Z.
-				addPart(mesh, part, flight.Vector{-part.Position[0], part.Position[1], part.Position[2]},
+				addPart(mesh, part, detail, flight.Vector{-part.Position[0], part.Position[1], part.Position[2]},
 					flight.Vector{part.Rotation[0], -part.Rotation[1], -part.Rotation[2]})
 			}
 		}
@@ -34,10 +34,10 @@ func Build(layers []protocol.Layer) *scene.Mesh {
 }
 
 // addPart places a primitive's triangles with the part's scale, then rotation, then position.
-func addPart(mesh *scene.Mesh, part protocol.Part, position, rotation flight.Vector) {
+func addPart(mesh *scene.Mesh, part protocol.Part, detail Detail, position, rotation flight.Vector) {
 	turn := flight.FromEulerXYZ(rotation[0], rotation[1], rotation[2])
 	colour := linearColour(part.Color)
-	for _, corners := range primitive(part.Type) {
+	for _, corners := range primitive(part.Type, detail) {
 		var placed triangle
 		for index, corner := range corners {
 			scaled := flight.Vector{corner[0] * part.Scale[0], corner[1] * part.Scale[1], corner[2] * part.Scale[2]}

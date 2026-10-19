@@ -75,13 +75,14 @@ func main() {
 			return false
 		}
 		session.exchange(frame, now)
+		networkTime := time.Since(frameStart)
 		world.show(session.game, &view, frame.Seconds)
 
 		ctr.BeginFrame()
 		separation := ctr.Slider3D() * eyeSeparation
 		renderer.PaintStereo(world.scene, view, separation, focalDistance)
 		panel.Paint(frame.Input, session.build)
-		session.measure(frame, renderer, time.Since(frameStart), now)
+		session.measure(frame, renderer, time.Since(frameStart), networkTime, now)
 		ctr.EndFrame()
 		if session.typing {
 			session.typeServer()
@@ -282,7 +283,7 @@ func (session *session) close() {
 
 // measure counts the frame for the Figures tab; processor is how long the frame took before
 // waiting for the screen.
-func (session *session) measure(frame app.Frame, renderer *ctr.SceneRenderer, processor time.Duration, now float64) {
+func (session *session) measure(frame app.Frame, renderer *ctr.SceneRenderer, processor, network time.Duration, now float64) {
 	statistics := renderer.Statistics(processor)
 	if session.menuOpen && session.tab == figuresTab && now-session.memoryAt >= memoryEverySeconds {
 		// Reading the heap walks it, which takes most of a frame: only while shown, once a second.
@@ -298,6 +299,8 @@ func (session *session) measure(frame app.Frame, renderer *ctr.SceneRenderer, pr
 	session.figures.AddFrame(figures.Frame{
 		Seconds:               frame.Seconds,
 		ProcessorMilliseconds: float32(processor.Seconds() * 1000),
+		NetworkMilliseconds:   float32(network.Seconds() * 1000),
+		DrawingMilliseconds:   float32((processor - network).Seconds() * 1000),
 		GPUMilliseconds:       ctr.DrawingTime(),
 		Triangles:             statistics.Triangles,
 		DrawCalls:             statistics.DrawCalls,

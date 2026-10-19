@@ -62,3 +62,10 @@ func TestBrokenJsonHasItsCode(t *testing.T) {
 		t.Fatalf("code %q", ErrUnreadable.Error())
 	}
 }
+
+func TestASnapshotWithTypeLastIsStillRead(t *testing.T) {
+	_, states, err := Read(`{"players":[{"id":"b","p":[1,0,0],"q":[0,0,0,1],"v":[0,0,0]}],"type":"snapshot"}`)
+	if err != nil || len(states) != 1 || states[0].Id != "b" {
+		t.Fatalf("got %+v, %v", states, err)
+	}
+}

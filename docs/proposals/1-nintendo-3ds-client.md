@@ -75,12 +75,13 @@ console).
 - [x] T9 — touch-screen scoreboard · `cmd/ships3ds` · R7 · test: screenshot in Azahar
 - [x] T12 — asked for after the demo: title screen, server typed on the system keyboard (go-3ds `keyboard`), the touch screen as a sweeping radar (`client3ds/radar`), START options with Game, Figures (`client3ds/figures`), Settings and Controls tabs, the C-stick (go-3ds `app`), ship choice, aim cross and chase camera (`client3ds/chase`) · tests: `TestAShipShowsOnlyOnceTheSweepPassesIt`, `TestASecondOfFramesIsShownWhole`, `TestTheCameraLagsThenCatchesUp`, `TestTheCurveKeepsTheEdgesAndSoftensTheCentre`, `TestTheRespawnCountsDown`
 - [x] T13 — fixes from the review: connect and send time out (go-3ds `network`), websocket frames out of order refused, pending bounded and reused, handshake refusal closes, header injection refused, error codes kept through wrapping, `protocol.unreadable-message`, the C-stick service released · tests: `TestFramesOutOfOrderAreRefused`, `TestARefusedHandshakeClosesTheClient`, `TestHeadersCannotCarryNewLines`, `TestTheTransportsErrorIsKept`, `TestBrokenJsonHasItsCode`, echo against an unreachable address in Azahar
+- [x] T14 — many players: measured with a swarm of bots in Azahar (5 / 15 / 30 / 60 bots: 10 / 3 / under 3 / — fps before, 56 / 32 / 25 / 14 after). The costs were go-renderer's sea-floor measure redone over every lit mesh whenever one changed (a still ground mesh makes it skip), every turning ship baked again every frame (now at most two a frame, the most visible first: `client3ds/turning`), fine detail on every ship (coarse beyond 60 units: `ship.Coarse`), bullets baked again when their node changed hands (now cubes with no turn), and snapshots decoded twice · tests: `TestNoMoreThanTheBudgetIsChosen`, `TestTheNearestAndMostTurnedGoFirst`, `TestChoosingAllocatesNothingOnceWarm`, `TestTheCoarseDetailHasFarFewerTriangles`, `TestASnapshotWithTypeLastIsStillRead`
 - [ ] T10 — TLS and login · decided then · R8 · test: join against the HTTPS dev server
 - [x] T11 — check the server is untouched · R9 · test: `go test ./...`
 
 ## Result
 
-Released as prereleases `demo-1` … `demo-8` in the author's private copy (akrck02/ships-go-3d),
+Released as prereleases `demo-1` … `demo-10` in the author's private copy (akrck02/ships-go-3d),
 built from `feature/3ds-client`. Tested in the Azahar emulator against the server and a bot on
 the PC, and the author has joined a game from the console (server log, 2026-10-18 22:35).
 
@@ -96,6 +97,8 @@ building the client needs that copy next to this repository (`replace` in `clien
 go-renderer's `ctr` keeps one baked copy of a mesh per orientation, forever, so turning ships
 filled the GPU memory; `cmd/ships3ds` gives each node its own mesh and drops the bake when it
 turns (TODO in `world.go`).
+
+Measured in the emulator with up to 60 bots (T14): the server handles 60 without errors (4,400 messages and 12.7 MB a second); the client draws 14 frames a second there, 25 with 30 bots and 56 with 5. On the console the numbers will differ: the Figures tab shows them.
 
 Pending: R8 (TLS and login: needs a decision between mbedtls, sslc and a plain port), a
 reviewer's second pass, and a person's review of all of it. The reviewer's notes on comments of
