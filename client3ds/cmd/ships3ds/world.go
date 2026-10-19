@@ -3,8 +3,6 @@
 package main
 
 import (
-	"math/rand/v2"
-
 	"github.com/akrck02/go-renderer/graphics"
 	"github.com/akrck02/go-renderer/models"
 	"github.com/akrck02/go-renderer/scene"
@@ -20,16 +18,13 @@ import (
 // radii.
 const (
 	cameraNear    = 0.5
-	cameraFar     = 1200
+	cameraFar     = 2600 // past the sky and the world's edge
 	focalDistance = 15
 	eyeSeparation = 0.4 // with the 3D slider at its top
 )
 
-// Dust: specks scattered through space, so flying straight still shows movement.
+// Bullets.
 const (
-	dustSpecks = 600
-	dustSize   = 0.6
-	dustSeed   = 7
 	// Bullets are small cubes with no turn: a streak along its path would be baked again each
 	// time a node took another bullet, and on the 3DS that is the expensive part of a frame.
 	bulletSize   = 1.2
@@ -37,7 +32,6 @@ const (
 )
 
 var (
-	dustColour        = [3]float32{0.7, 0.75, 0.85}
 	ownBulletColour   = [3]float32{1, 0.85, 0.3}
 	otherBulletColour = [3]float32{1, 0.35, 0.3}
 	reticleColour     = [3]float32{0.45, 0.85, 1}
@@ -56,17 +50,23 @@ type world struct {
 	remotes                map[string]*scene.Node
 	bullets                []*scene.Node
 	view                   chase.View // what the camera saw last, to leave out the ships it can't
+	sky, edge              *scene.Node
+	dust                   []*scene.Node
 }
 
 func newWorld() *world {
 	space := scene.New()
-	space.Environment.SkyZenith = graphics.Vec4{0.01, 0.01, 0.04, 1}
-	space.Environment.SkyHorizon = graphics.Vec4{0.03, 0.03, 0.08, 1}
-	space.Environment.FogColor = space.Environment.SkyHorizon
-	space.Environment.Ambient = 0.45
-	space.Environment.SunDirection = graphics.Vec4{-0.4, 0.8, 0.45, 0}.Normalize()
-	space.Nodes = append(space.Nodes, &scene.Node{Name: "dust", Transform: graphics.Identity(), Mesh: dust()})
+	lightSpace(&space.Environment)
 	world := &world{scene: space, ships: map[meshKey]*scene.Mesh{}, remotes: map[string]*scene.Node{}}
+	world.sky = skyNode()
+	world.edge = &scene.Node{Name: "world edge", Transform: graphics.Identity(), Hidden: true}
+	space.Nodes = append(space.Nodes, world.sky, world.edge)
+	cell := dustCellMesh()
+	for range 8 {
+		node := &scene.Node{Name: "dust", Mesh: cell, Transform: graphics.Identity()}
+		world.dust = append(world.dust, node)
+		space.Nodes = append(space.Nodes, node)
+	}
 	// Ships and the aim cross turn all the time: Moving has go-renderer light them on the GPU
 	// rather than bake their light again at every turn.
 	world.own = &scene.Node{Name: "own", Hidden: true, Moving: true}
@@ -105,6 +105,18 @@ func (world *world) show(state *game.Game, view *models.Camera, seconds float64)
 	world.showRemotes(state)
 	world.showBullets(state)
 	world.placeReticle(state)
+	world.placeSpace(state)
+}
+
+// placeSpace keeps the sky around the camera, the dust around the ship, and the world's edge, once
+// the game has said how large the world is.
+func (world *world) placeSpace(state *game.Game) {
+	eye := world.view.Eye
+	world.sky.Transform = graphics.Translate(graphics.Vec4{float32(eye[0]), float32(eye[1]), float32(eye[2]), 0})
+	dustCellsAround(world.dust, state.Own.Position)
+	if world.edge.Mesh == nil && state.Settings.WorldRadius > 0 {
+		world.edge.Mesh, world.edge.Hidden = worldEdge(state.Settings.WorldRadius), false
+	}
 }
 
 // meshKey is a design near or far.
@@ -257,18 +269,6 @@ func transformOf(position flight.Vector, rotation flight.Rotation, scale float64
 		graphics.Vec4{float32(rotation[0]), float32(rotation[1]), float32(rotation[2]), float32(rotation[3])},
 		graphics.Vec4{float32(scale), float32(scale), float32(scale), 0},
 	)
-}
-
-// dust scatters small boxes through the world.
-func dust() *scene.Mesh {
-	random := rand.New(rand.NewPCG(dustSeed, dustSeed))
-	mesh := &scene.Mesh{Name: "dust", Material: &scene.Material{Kind: scene.KindUnlit, BaseColor: graphics.Vec4{1, 1, 1, 1}}}
-	const spread = 600
-	for range dustSpecks {
-		centre := [3]float32{(random.Float32()*2 - 1) * spread, (random.Float32()*2 - 1) * spread, (random.Float32()*2 - 1) * spread}
-		appendBox(mesh, centre, dustSize, dustSize, dustSize, dustColour)
-	}
-	return mesh
 }
 
 func box(name string, width, height, depth float32, colour [3]float32) *scene.Mesh {

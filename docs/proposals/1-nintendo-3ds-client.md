@@ -86,6 +86,7 @@ console).
 - [x] T11 — check the server is untouched · R9 · test: `go test ./...`
 
 - [x] T21 — a 3D radar on the touch screen, as the browser's: a dish seen from above and behind, blips with stalks to its plane, the sweep turning in it, drawn by a second ctr.SceneRenderer with the readings painted over it (go-3ds `bottom.PaintOver`); the flat one stays in Settings. 60 fps with 30 bots in Azahar · test: `TestABlipOnTheRightIsOnMinusX`
+- [x] T22 — space as the browser's: a near-black background, 1,500 stars and its three planets on a sky that follows the camera, the world's edge as a faint grid (a subdivided icosahedron), the browser's light (hemisphere sky and ground, warm sun), and dust in cells of 300 that follow the ship, so it no longer runs out away from the centre. 60 fps with 30 bots in Azahar
 
 ## Result
 
