@@ -1,6 +1,6 @@
 # 1. A Nintendo 3DS client
 
-> Status: building · Author's approval: proposal ☑ plan ☑
+> Status: done, pending review · Author's approval: proposal ☑ plan ☑
 
 ## Why
 
@@ -82,7 +82,7 @@ console).
 - [x] T18 — five more built-in ships on the server (Kestrel, Mule, Lancer, Bulwark, Wisp: 11 to 25 parts, designed as a player might), in the 3DS's list too, chosen with arrows since a drop-down of eight ran off the touch screen · tests: `TestEveryDefaultShipIsAValidDesign`, `TestTheDefaultShipsHaveTheirIds`
 - [x] T19 — logging in (half of R8): email and password on the system keyboard (go-3ds `keyboard.Password`), `POST /login` over a small HTTP client (`client3ds/web`), the session's cookie on the websocket's handshake, and the player's own designs after the built-in ones (`client3ds/account`, `GET /game/ships`); log out. Tried in Azahar against the server: joined as the test user flying one of its own ships · tests: `TestALoginSetsItsCookie`, `TestALongAnswerInChunksIsJoined`, `TestASilentServerTimesOut`, `TestAPlayerLogsInAndSeesTheirShips`, `TestAWrongPasswordIsRefused`
 - [x] T20 — the ship arrows offer what the chosen server has: three ships every version has until the server answers, its own list after typing its address, logging in or out, and checked again on Connect (a ship it lacks is refused with a message instead of an error from the server). Tried in Azahar against this branch's server and one built from `main`
-- [ ] T10 — TLS (the other half of R8). The real server, `jonbul.ddns.net`, has a Let's Encrypt certificate (intermediate YE1, elliptic curve) and speaks TLS 1.3; mbedtls is in devkitPro's portlibs · decided then · R8 · test: join against the HTTPS dev server
+- [x] T10 — TLS (the other half of R8): go-3ds `network.DialSecure`, TLS 1.2 through devkitPro's mbedtls 2.28, trusting Let's Encrypt's ISRG Root X1 and X2 and checking the server's name; a server typed as `https://name:port` is talked to over TLS for logging in, the ships and the websocket (`account.ParseAddress`). The real server, `https://jonbul.ddns.net:3000`, answers in about a second's handshake; a self-signed or misnamed certificate is refused. Found on the way: Close skipped freeing a connection the server had closed first, and the third TLS handshake failed to allocate · tests: `TestAddressesAreUnderstood`; `cmd/secure-echo` in Azahar against the real server and badssl.com · decided then · R8 · test: join against the HTTPS dev server
 - [x] T11 — check the server is untouched · R9 · test: `go test ./...`
 
 ## Result

@@ -96,10 +96,31 @@ func TestAWrongPasswordIsRefused(t *testing.T) {
 }
 
 func TestEveryErrorHasItsOwnCode(t *testing.T) {
-	codes := map[error]string{ErrRefused: "account.refused", ErrServer: "account.server-error"}
+	codes := map[error]string{ErrRefused: "account.refused", ErrServer: "account.server-error", ErrAddress: "account.bad-address"}
 	for err, code := range codes {
 		if err.Error() != code {
 			t.Errorf("%v has the code %q, want %q", err, err.Error(), code)
+		}
+	}
+}
+
+func TestAddressesAreUnderstood(t *testing.T) {
+	cases := map[string]Address{
+		"192.168.1.20:3000":           {Host: "192.168.1.20", Port: 3000},
+		"192.168.1.20":                {Host: "192.168.1.20", Port: DefaultPort},
+		"https://example.org:3000":    {Host: "example.org", Port: 3000, Secure: true},
+		" HTTPS://example.org:3000/ ": {Host: "example.org", Port: 3000, Secure: true},
+		"wss://example.org":           {Host: "example.org", Port: DefaultPort, Secure: true},
+	}
+	for typed, want := range cases {
+		got, err := ParseAddress(typed)
+		if err != nil || got != want {
+			t.Errorf("%q: got %+v, %v; want %+v", typed, got, err, want)
+		}
+	}
+	for _, typed := range []string{"", "https://", "example.org:port", "example.org:70000"} {
+		if _, err := ParseAddress(typed); !errors.Is(err, ErrAddress) {
+			t.Errorf("%q: got %v, want %v", typed, err, ErrAddress)
 		}
 	}
 }

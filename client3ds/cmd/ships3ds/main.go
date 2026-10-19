@@ -16,10 +16,7 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"runtime"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/akrck02/go-3ds/app"
@@ -161,7 +158,7 @@ func (session *session) askWithKeyboard() {
 	session.asking = askNothing
 	switch asked {
 	case askServer:
-		server, confirmed := keyboard.Ask(keyboard.Numbers, "Server address:port", session.server, maximumServerLength)
+		server, confirmed := keyboard.Ask(keyboard.Text, "Server: address:port, or https://name:port", session.server, maximumServerLength)
 		if confirmed {
 			session.server = server
 			session.refreshShips()
@@ -171,27 +168,22 @@ func (session *session) askWithKeyboard() {
 	}
 }
 
-// serverAddress splits what was typed into the address and the port, which is 3000 when left out.
-func (session *session) serverAddress() (address string, portNumber int, err error) {
-	address, portText, found := strings.Cut(session.server, ":")
-	if !found {
-		portText = port
+// dial connects to the server, over TLS when it was typed with https://.
+func dial(address account.Address) (*network.Connection, error) {
+	if address.Secure {
+		return network.DialSecure(address.Host, address.Port)
 	}
-	portNumber, err = strconv.Atoi(portText)
-	if err != nil {
-		return "", 0, fmt.Errorf("the port %q is not a number", portText)
-	}
-	return address, portNumber, nil
+	return network.Dial(address.Host, address.Port)
 }
 
 // api is the server's HTTP side, for logging in and the list of ships.
 func (session *session) api() (account.Server, error) {
-	address, portNumber, err := session.serverAddress()
+	address, err := account.ParseAddress(session.server)
 	if err != nil {
 		return account.Server{}, err
 	}
-	dial := func() (account.Connection, error) { return network.Dial(address, portNumber) }
-	return account.Server{Dial: dial, Host: address + ":" + strconv.Itoa(portNumber)}, nil
+	connect := func() (account.Connection, error) { return dial(address) }
+	return account.Server{Dial: connect, Host: address.HostPort()}, nil
 }
 
 // logIn asks for an email and a password, logs in, and offers the player's own ships too.
@@ -293,12 +285,12 @@ func (session *session) connect() {
 		session.status = "This server has no " + chosen.name + ": choose another ship"
 		return
 	}
-	address, portNumber, err := session.serverAddress()
+	address, err := account.ParseAddress(session.server)
 	if err != nil {
 		session.status = err.Error()
 		return
 	}
-	session.connection, err = network.Dial(address, portNumber)
+	session.connection, err = dial(address)
 	if err != nil {
 		session.status = err.Error()
 		return
@@ -307,7 +299,7 @@ func (session *session) connect() {
 	if session.account.Token != "" {
 		header = map[string]string{"Cookie": session.account.Cookie()}
 	}
-	hostPort := address + ":" + strconv.Itoa(portNumber)
+	hostPort := address.HostPort()
 	session.client, err = websocket.Connect(session.connection, hostPort, websocketPath, header)
 	if err != nil {
 		session.status = err.Error()

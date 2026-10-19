@@ -6,4 +6,5 @@ import "errors"
 var (
 	ErrRefused = errors.New("account.refused")      // wrong email or password
 	ErrServer  = errors.New("account.server-error") // the server failed, or answered what this package can't read
+	ErrAddress = errors.New("account.bad-address")  // what was typed isn't a server's address
 )

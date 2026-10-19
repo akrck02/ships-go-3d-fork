@@ -13,7 +13,9 @@ local copies of go-3ds (branch `feature/network`) and go-renderer (branch
 `feature/3ds-moving-light`), at the paths `go.mod` names.
 
 Playing: touch the title screen, type the server as `address:port` with **Change** (the system
-keyboard), **Log in** to fly your own designs too (or stay a guest), choose a ship and **Connect** (plain `ws://`: no TLS yet). In the game the touch screen is a radar that turns with the ship and sweeps once every 5
+keyboard), **Log in** to fly your own designs too (or stay a guest), choose a ship and **Connect**. A server typed
+as `https://name:port` (the real one is `https://jonbul.ddns.net:3000`) is talked to over TLS; one
+typed without, such as one at home, in plain text. In the game the touch screen is a radar that turns with the ship and sweeps once every 5
 seconds, with the speed up its right edge; it flashes red when you are hit. Circle pad: nose and
 turn. R or A: fire. C-stick, or left and right on the cross: roll. C-stick up and down, X and B:
 faster and slower. With *Steer by tilting* on, tipping and turning the console steers too; L
