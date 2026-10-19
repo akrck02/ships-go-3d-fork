@@ -33,6 +33,9 @@ const (
 // copilotEdgeWarning is what the copilot says as the ship heads out of the arena.
 const copilotEdgeWarning = "We're leaving the combat arena, sir!"
 
+// copilotTurningBack is what the copilot says while it turns the ship back itself.
+const copilotTurningBack = "Taking the helm, sir. Back to the arena!"
+
 // copilotFace is the copilot, a little round robot: a shell ('#', '='), a dark screen for a
 // face ('-'), big eyes with a shine ('o', '*'), blushing cheeks ('p'), a smile ('s') and an
 // antenna with a light on top ('a').
@@ -91,7 +94,10 @@ var hudColours = struct {
 func paintHUD(drawing *draw2d.List, state *game.Game, now float64) {
 	drawing.Reset()
 	paintLife(drawing, state.Player.Life, state.Settings.MaxLife, now)
-	if state.EdgeNearness() >= copilotWarnShare {
+	switch {
+	case state.Returning:
+		paintCopilot(drawing, copilotTurningBack, now)
+	case state.EdgeNearness() >= copilotWarnShare:
 		paintCopilot(drawing, copilotEdgeWarning, now)
 	}
 }

@@ -64,7 +64,10 @@ type Game struct {
 	// touched it (still scraping along it); EdgePoint is where. Both 0 before any.
 	EdgeHitAt, EdgeTouchAt float64
 	EdgePoint              flight.Vector
-	touchingEdge           bool
+	// Returning is true while the ship, too near the edge, is turned back toward the middle of
+	// the world on its own, the player's controls set aside until it faces inward.
+	Returning    bool
+	touchingEdge bool
 
 	events, taken []Event // what happened, for TakeEvents
 	killedBy      string
@@ -203,9 +206,10 @@ func (game *Game) Step(controls flight.Controls, firing, respawning bool, second
 		return game.outgoing
 	}
 	if game.Alive {
+		controls = game.steerHome(controls)
 		flight.Step(&game.Own, controls, game.Settings.Settings, seconds)
 		game.watchEdge(now)
-		if firing && now-game.lastFire >= float64(game.Settings.FireCooldownMs)/millisecondsPerSecond {
+		if firing && !game.Returning && now-game.lastFire >= float64(game.Settings.FireCooldownMs)/millisecondsPerSecond {
 			game.fire(now)
 		}
 		if interval := 1 / float64(game.Settings.TickRate); game.Settings.TickRate > 0 && now-game.lastState >= interval-stateSlackSeconds {
@@ -240,6 +244,49 @@ func (game *Game) EdgeNearness() float64 {
 	}
 	band := radius * edgeWarningShare
 	return min(max((game.Own.Position.Length()-(radius-band))/band, 0), 1)
+}
+
+// The turn back from the edge: how near starts it, how squarely the ship must face the middle to
+// end it (the cosine of the angle left), how hard it steers, and the speed it keeps at least.
+const (
+	returnStartNearness = 0.8
+	returnFacing        = 0.96
+	returnSteering      = 2.5
+	returnLeastSpeed    = 0.3 // a share of the most speed
+)
+
+// steerHome turns the ship back toward the middle of the world when it heads out too near the
+// edge, as an autopilot would, softly, and gives the controls back once it faces inward; until
+// then the player's controls are set aside.
+func (game *Game) steerHome(controls flight.Controls) flight.Controls {
+	toMiddle := game.Own.Position.Times(-1)
+	if toMiddle.Length() == 0 {
+		game.Returning = false
+		return controls
+	}
+	toMiddle = toMiddle.Times(1 / toMiddle.Length())
+	ahead := game.Own.Rotation.Apply(flight.Forward)
+	if !game.Returning && game.EdgeNearness() >= returnStartNearness && ahead.Dot(toMiddle) < 0 {
+		game.Returning = true
+	}
+	if !game.Returning {
+		return controls
+	}
+	local := game.Own.Rotation.Inverse().Apply(toMiddle) // where the middle is, as the ship sees it
+	if local[2] >= returnFacing {
+		game.Returning = false
+		return controls
+	}
+	// +X is the ship's left: the middle to the left is a turn left, a negative yaw.
+	yaw := min(max(-local[0]*returnSteering, -1), 1)
+	if local[2] < 0 && math.Abs(local[0]) < 0.2 {
+		yaw = 1 // straight behind: pick a side
+	}
+	steer := flight.Controls{Yaw: yaw, Pitch: min(max(local[1]*returnSteering, -1), 1)}
+	if game.Own.Speed < returnLeastSpeed*game.Settings.MaxSpeed {
+		steer.Throttle = 1
+	}
+	return steer
 }
 
 // watchEdge notes when the ship touches the world's edge, and when it runs into it anew.

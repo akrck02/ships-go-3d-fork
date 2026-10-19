@@ -167,3 +167,37 @@ func TestTheEdgeIsFeltOnlyNearIt(t *testing.T) {
 		}
 	}
 }
+
+func TestHeadingOutNearTheEdgeTurnsTheShipBackOnItsOwn(t *testing.T) {
+	game := welcomed(5000)
+	game.Own.Position = flight.Vector{0, 0, 1470}
+	game.Own.Speed = 40
+	pulledUp := flight.Controls{Pitch: 1}
+	now := 1.0
+	game.Step(pulledUp, false, false, 0.1, now)
+	if !game.Returning {
+		t.Fatal("heading out near the edge did not start the turn back")
+	}
+	for range 200 {
+		now += 0.05
+		game.Step(pulledUp, false, false, 0.05, now)
+		if !game.Returning {
+			break
+		}
+	}
+	ahead := game.Own.Rotation.Apply(flight.Forward)
+	toMiddle := game.Own.Position.Times(-1 / game.Own.Position.Length())
+	if game.Returning || ahead.Dot(toMiddle) < returnFacing {
+		t.Fatalf("still returning %v, facing the middle by %v", game.Returning, ahead.Dot(toMiddle))
+	}
+}
+
+func TestHeadingInNearTheEdgeLeavesTheControlsAlone(t *testing.T) {
+	game := welcomed(5000)
+	game.Own.Position = flight.Vector{0, 0, 1450}
+	game.Own.Rotation = flight.FromEulerXYZ(0, math.Pi, 0) // nose toward the middle
+	game.Step(flight.Controls{}, false, false, 0.1, 1)
+	if game.Returning {
+		t.Fatal("a ship heading inward was turned")
+	}
+}
