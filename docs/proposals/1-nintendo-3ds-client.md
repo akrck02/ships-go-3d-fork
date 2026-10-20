@@ -64,7 +64,7 @@ console).
 
 ## Tasks
 
-- [x] T1 — TCP sockets on the 3DS · go-3ds `network` package (branch feature/network, local) + `cmd/echo` · R1 · test: echo in Azahar
+- [x] T1 — TCP sockets on the 3DS · go-3ds `network` package (released in v0.2.0) + `cmd/echo` · R1 · test: echo in Azahar
 - [x] T2 — websocket client · `client3ds/websocket` · R2 · test: `TestAClientTalksToAGorillaServer`, `TestClientFramesAreMasked`
 - [x] T3 — protocol messages · `client3ds/protocol` · R3 · test: `TestAWelcomeIsRead`, `TestASnapshotGivesItsMovedPlayers`, `TestOutgoingMessagesUseTheServersFieldNames`
 - [x] T4 — join as a guest from the console · `cmd/ships3ds` · R3 · test: Azahar against `runDev.sh`, browser sees the ship
@@ -77,7 +77,7 @@ console).
 - [x] T13 — fixes from the review: connect and send time out (go-3ds `network`), websocket frames out of order refused, pending bounded and reused, handshake refusal closes, header injection refused, error codes kept through wrapping, `protocol.unreadable-message`, the C-stick service released · tests: `TestFramesOutOfOrderAreRefused`, `TestARefusedHandshakeClosesTheClient`, `TestHeadersCannotCarryNewLines`, `TestTheTransportsErrorIsKept`, `TestBrokenJsonHasItsCode`, echo against an unreachable address in Azahar
 - [x] T14 — many players: measured with a swarm of bots in Azahar (5 / 15 / 30 / 60 bots: 10 / 3 / under 3 / — fps before, 56 / 32 / 25 / 14 after). The costs were go-renderer's sea-floor measure redone over every lit mesh whenever one changed (a still ground mesh makes it skip), every turning ship baked again every frame (now at most two a frame, the most visible first: `client3ds/turning`), fine detail on every ship (coarse beyond 60 units: `ship.Coarse`), bullets baked again when their node changed hands (now cubes with no turn), and snapshots decoded twice · tests: `TestNoMoreThanTheBudgetIsChosen`, `TestTheNearestAndMostTurnedGoFirst`, `TestChoosingAllocatesNothingOnceWarm`, `TestTheCoarseDetailHasFarFewerTriangles`, `TestASnapshotWithTypeLastIsStillRead`
 - [x] T15 — only the ships the camera can see are drawn and get a mesh (a cone round the screen's corners, up to 700 units: `chase.View.Sees`); the radar still shows them all. 60 bots: 22 fps facing them, 37 with them behind · test: `TestTheViewSeesAheadAndNotBehind`
-- [x] T16 — snapshots read by hand, allocating nothing (`protocol.SnapshotReader`); and in go-renderer (local branch `feature/3ds-moving-light`): `scene.Node.Moving` lights a node on the GPU instead of baking it at every turn, at most four bakes a mesh, no seabed without water. The client marks ships and the aim cross Moving and drops its workarounds (copies of meshes per node, the budget of bakes, the still ground). 57 fps with 5, 15, 30 and 60 bots in the emulator · tests: `TestTheReaderAgreesWithEncodingJson`, `TestReadingASnapshotAllocatesNothingOnceWarm`, `TestASceneWithoutWaterHasNoSeabed`, `TestTheLeastRecentlyDrawnVariantIsTheOneReplaced` (ctr, in Azahar)
+- [x] T16 — snapshots read by hand, allocating nothing (`protocol.SnapshotReader`); and in go-renderer (released in v0.2.0): `scene.Node.Moving` lights a node on the GPU instead of baking it at every turn, at most four bakes a mesh, no seabed without water. The client marks ships and the aim cross Moving and drops its workarounds (copies of meshes per node, the budget of bakes, the still ground). 57 fps with 5, 15, 30 and 60 bots in the emulator · tests: `TestTheReaderAgreesWithEncodingJson`, `TestReadingASnapshotAllocatesNothingOnceWarm`, `TestASceneWithoutWaterHasNoSeabed`, `TestTheLeastRecentlyDrawnVariantIsTheOneReplaced` (ctr, in Azahar)
 - [x] T17 — a design at the server's limit (400 parts, most mirrored, round shapes) ran the console out of memory at the fine detail (about 200,000 triangles): each design now gets the finest detail that fits a budget of triangles, near and far (`ship.Within`, a third level `ship.Minimal`), its mesh made to measure; and a welcome carrying twenty such designs passed the websocket's 1 MB limit, now 8 MB. Twenty of them around the camera: 45 fps · tests: `TestTrianglesCountsWhatBuildMakes`, `TestAHeavyDesignGetsAPlainerDetail`
 - [x] T18 — five more built-in ships on the server (Kestrel, Mule, Lancer, Bulwark, Wisp: 11 to 25 parts, designed as a player might), in the 3DS's list too, chosen with arrows since a drop-down of eight ran off the touch screen · tests: `TestEveryDefaultShipIsAValidDesign`, `TestTheDefaultShipsHaveTheirIds`
 - [x] T19 — logging in (half of R8): email and password on the system keyboard (go-3ds `keyboard.Password`), `POST /login` over a small HTTP client (`client3ds/web`), the session's cookie on the websocket's handshake, and the player's own designs after the built-in ones (`client3ds/account`, `GET /game/ships`); log out. Tried in Azahar against the server: joined as the test user flying one of its own ships · tests: `TestALoginSetsItsCookie`, `TestALongAnswerInChunksIsJoined`, `TestASilentServerTimesOut`, `TestAPlayerLogsInAndSeesTheirShips`, `TestAWrongPasswordIsRefused`
@@ -89,30 +89,33 @@ console).
 - [x] T22 — space as the browser's: a near-black background, 1,500 stars and its three planets on a sky that follows the camera, the world's edge as a faint grid (a subdivided icosahedron), the browser's light (hemisphere sky and ground, warm sun), and dust in cells of 300 that follow the ship, so it no longer runs out away from the centre. 60 fps with 30 bots in Azahar
 - [x] T23 — quality of life: the title enters the remembered server at once (the real one by default) with the remembered session (go-3ds `storage`, `client3ds/profile`, `account.Who`), then a ship screen (the ship turning on the top screen, its name, arrows, Fly), then the game; the server and the account live in the options' Account tab and warn that the game will restart; ZL/ZR slow down and speed up; the radar says its zoom instead of a distance with no unit; the gyroscope's rates were thousands of times too large (multiplied by libctru's coefficient instead of divided) · tests: `TestAProfileComesBackAsItWasSaved`, `TestABrokenFileStartsAfresh`, `TestARememberedSessionIsCheckedWithTheServer`; `cmd/storage-check` in Azahar
 - [x] T24 — pixel art in the colours of space (OFL pixel fonts, square corners, hard shadows), the ship screen's turning ship on the touch screen seen from above, the gyroscope's axes swapped (reported on the console), the socket service started first with Go's heap capped at 64 MB; and running into the world's edge: the grid glows around the touch and fades, sparks fly, the camera shakes, with the edge's lines a pixel wide wherever the camera is · tests: `TestRunningIntoTheEdgeIsNotedOnce`, `TestTheGlowIsBrightestAtTheHitAndGoneAtItsReach`, `TestTheShakeDiesAway`
-- [x] T25 — sound through go-sound (local branch feature/sound, the console's DSP): chiptune effects and a looping track worked out in code (`client3ds/chiptune`): shots, hits, blasts, the force field, the menus; volumes for effects and music in Settings, remembered · tests: `TestEverySoundStaysWithinRangeAndEnds`, `TestTheMusicNeverEndsAndStaysWithinRange`, `TestTheWaveSpreadsFastThenSlows`
+- [x] T25 — sound through go-sound (released in v0.1.1, the console's DSP): chiptune effects and a looping track worked out in code (`client3ds/chiptune`): shots, hits, blasts, the force field, the menus; volumes for effects and music in Settings, remembered · tests: `TestEverySoundStaysWithinRangeAndEnds`, `TestTheMusicNeverEndsAndStaysWithinRange`, `TestTheWaveSpreadsFastThenSlows`
 
 ## Result
 
-Released as prereleases `demo-1` … `demo-12` in the author's private copy (akrck02/ships-go-3d),
-built from `feature/3ds-client`. Tested in the Azahar emulator against the server and a bot on
-the PC, and the author has joined a game from the console (server log, 2026-10-18 22:35).
+Tried out as prereleases `demo-1` … `demo-36`, built from `feature/3ds-client`, in the Azahar
+emulator against a local server with bots, and on a New 3DS XL against the real server
+(`https://jonbul.ddns.net:3000`, over TLS) with test accounts.
 
-What the client does: join as a guest with a built-in ship chosen on the touch screen, fly with
-the circle pad (fine aim and invert settings), the C-stick or the buttons, fire and hit (the
-server applies the damage), respawn, and see the others in stereoscopic 3D with an aim cross and
-a lagging chase camera. The touch screen is a radar that sweeps once every 5 seconds, with the
-speed, hits and the respawn countdown; START opens the game, figures, settings and controls.
+What the client does: the title, then a hangar where your ships (built-in and your own designs)
+turn on a platform; log in and pick the server from the menu, remembered on the SD card; fly with
+the circle pad, the C-stick, the buttons or the gyroscope; fire, take hits, die and fly again; see
+the others in stereoscopic 3D with a 3D radar on the touch screen; chiptune sound and an engine
+that follows the speed; at the world's edge a force field, a camera that draws back and a copilot
+who turns you back.
 
-Changed from the plan: sockets, the keyboard, START handling and the C-stick live in go-3ds
-(`network`, `keyboard`, `app`), on its local branch `feature/network`, which is not pushed:
-building the client needs that copy next to this repository (`replace` in `client3ds/go.mod`).
-go-renderer's `ctr` kept one baked copy of a mesh per orientation, forever, so turning ships
-filled the GPU memory, and baking them again was most of a frame; fixed in go-renderer on a local
-branch, `feature/3ds-moving-light` (not pushed), which `client3ds/go.mod` points at.
+Changed from the plan: sockets, TLS, the SD card, the keyboard, START handling, the C-stick and
+the gyroscope live in Go for 3DS (`network`, `storage`, `keyboard`, `app`), released in go-3ds
+v0.2.0. go-renderer's `ctr` kept one baked copy of a mesh per orientation, forever, so turning
+ships filled the GPU memory; moving nodes are now lit on the GPU instead (go-renderer v0.2.0).
+Go Sound plays on the console's DSP (go-sound v0.1.1). `client3ds/go.mod` asks for those
+released versions, with no `replace`.
 
-Measured in the emulator with up to 60 bots (T14): the server handles 60 without errors (4,400 messages and 12.7 MB a second); the client draws 14 frames a second there, 25 with 30 bots and 56 with 5. On the console the numbers will differ: the Figures tab shows them.
+Measured in the emulator with up to 60 bots (T14): the server handles 60 without errors (4,400
+messages and 12.7 MB a second); the client draws 14 frames a second there, 25 with 30 bots and 56
+with 5. On the console, with about a dozen players, it holds about 60. The menu's STATS page
+shows the numbers.
 
-Pending: R8 (TLS and login: needs a decision between mbedtls, sslc and a plain port), a
-reviewer's second pass, and a person's review of all of it. The reviewer's notes on comments of
-private helpers and per-frame allocations were addressed; `println` stays for the debug log, as
-TinyGo on the 3DS has no `log/slog` output.
+Pending: a person's review of all of it, and a try on an older (non-New) 3DS, which has less
+memory and a slower processor. `println` stays for the debug log, as TinyGo on the 3DS has no
+`log/slog` output.
