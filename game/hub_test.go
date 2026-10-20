@@ -353,3 +353,31 @@ func TestRateLimitToleratesBurstsButNotFloods(t *testing.T) {
 		t.Fatal("a sustained flood was never refused")
 	}
 }
+
+func TestShipsThatRunIntoEachOtherBothDie(t *testing.T) {
+	s := newTestServer(t)
+	a := s.connect(t, "")
+	b := s.connect(t, "")
+	a.join("default:arrow", "a")
+	bId := b.join("default:arrow", "b")
+	a.place([3]float64{0, 0, 0})
+	b.place([3]float64{0, 0, 200})
+
+	// Far apart: refused.
+	a.send(map[string]any{"type": msgCrash, "with": bId})
+	a.expectNone(msgDied)
+
+	b.place([3]float64{0, 0, 5})
+	a.send(map[string]any{"type": msgCrash, "with": bId})
+	dead := map[any]bool{}
+	for range 2 {
+		died := b.expect(msgDied)
+		if died["from"] != "" {
+			t.Errorf("a crash credited %v", died["from"])
+		}
+		dead[died["target"]] = true
+	}
+	if len(dead) != 2 {
+		t.Fatalf("died: %v", dead)
+	}
+}

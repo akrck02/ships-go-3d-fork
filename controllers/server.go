@@ -23,15 +23,19 @@ type Server struct {
 	cfg   config.Config
 	store *dataaccess.Store
 	hub   *game.Hub
+	arena *game.Arena
 }
 
 func NewServer(cfg config.Config, store *dataaccess.Store) *Server {
 	s := &Server{cfg: cfg, store: store}
 	s.hub = game.NewHub(game.DefaultSettings(), s.loadShip, s.identify, s.checkOrigin)
+	s.arena = game.NewArena(game.DefaultSettings(), game.DefaultAssaultRules(), s.loadShip, s.identify, s.checkOrigin)
 	return s
 }
 
 func (s *Server) Hub() *game.Hub { return s.hub }
+
+func (s *Server) Arena() *game.Arena { return s.arena }
 
 func (s *Server) Router() *gin.Engine {
 	router := gin.Default()
@@ -54,7 +58,7 @@ func (s *Server) Router() *gin.Engine {
 	})
 
 	router.GET("/status", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok", "players": s.hub.PlayerCount()})
+		c.JSON(http.StatusOK, gin.H{"status": "ok", "players": s.hub.PlayerCount(), "assaultPlayers": s.arena.PlayerCount()})
 	})
 	s.registerUserRoutes(router)
 	s.registerProjectRoutes(router)
