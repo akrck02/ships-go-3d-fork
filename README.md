@@ -56,7 +56,8 @@ ships-go reads); `ssl` links to `../files/ssl`. Variables used:
 | GET/POST | `/projects` | list / create own projects |
 | GET/PUT/DELETE | `/projects/:id` | own projects only; others' are a 404 |
 | GET | `/game/ships` | `{defaults, own}` ships a player can fly |
-| GET | `/ws` | the game websocket (protocol in `game/protocol.go`) |
+| GET | `/ws` | the game websocket, free for all (protocol in `game/protocol.go`) |
+| GET | `/ws/assault` | the assault mode's websocket: lobbies and team rounds around a mothership (`game/assault.go`) |
 | GET | `/status` | health + player count |
 
 ## Layout

@@ -38,6 +38,7 @@ func main() {
 
 	server := controllers.NewServer(cfg, store)
 	go server.Hub().Run(ctx)
+	go server.Arena().Run(ctx)
 
 	httpServer := &http.Server{
 		Addr:              ":" + cfg.Port,
